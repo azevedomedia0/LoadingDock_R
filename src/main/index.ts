@@ -1,8 +1,8 @@
 // src/main/index.ts
 import { BrowserWindow, Tray, ApplicationMenu } from "electrobun/bun";
-import { tmpdir } from "os";
+import { tmpdir, homedir } from "os";
 import { join } from "path";
-import { writeFileSync } from "fs";
+import { writeFileSync, mkdirSync, chmodSync, rmSync } from "fs";
 import type { ContainerStatus, DockerApp, IpcMessage } from "../shared/types";
 import { loadRegistry, registryExists, saveRegistry } from "./registry";
 import {
@@ -156,6 +156,7 @@ async function main() {
 
   setupProcessErrorHandlers();
 
+  startLaunchServer();
   setupTray();
   setupMenu();
   openLauncher();
@@ -555,6 +556,7 @@ async function handleIpc(message: IpcMessage) {
       await saveRegistry(apps);
       broadcast({ type: "apps:list", apps });
       broadcastOgImages();
+      createDesktopIcon(newApp);
       break;
     }
     case "app:update": {
@@ -582,9 +584,11 @@ async function handleIpc(message: IpcMessage) {
       break;
     }
     case "app:remove": {
+      const removed = apps.find((a) => a.id === message.id);
       apps = apps.filter((a) => a.id !== message.id);
       await saveRegistry(apps);
       broadcast({ type: "apps:list", apps });
+      if (removed) removeDesktopIcon(removed);
       break;
     }
     case "compose:import": {
@@ -879,46 +883,30 @@ function setupTray() {
   updateTrayMenu();
 }
 
+function trayDot(status: DockerApp["status"]): string {
+  if (status === "running") return "🟢 ";
+  if (status === "starting" || status === "stopping") return "🟡 ";
+  if (status === "error") return "🔴 ";
+  return "⚫ "; // stopped / offline
+}
+
 function updateTrayMenu() {
   if (!trayInstance) return;
 
-  // Per-app submenu items
   const appItems: any[] = apps.length === 0
     ? [{ type: "normal", label: "No apps installed", enabled: false }]
     : apps.map((app) => {
-        const isRunning = app.status === "running";
         const busy = app.status === "starting" || app.status === "stopping";
-        const dot = isRunning ? "● " : app.status === "error" ? "✕ " : "○ ";
         const statusText = app.status === "stopped"
           ? "Offline"
           : app.status.charAt(0).toUpperCase() + app.status.slice(1);
         return {
           type: "normal",
-          label: `${dot}${app.name}`,
+          label: `${trayDot(app.status)}${app.name}`,
           tooltip: statusText,
-          submenu: [
-            {
-              type: "normal",
-              label: "Open Window",
-              action: "tray-app-window",
-              data: { id: app.id },
-            },
-            { type: "separator" },
-            {
-              type: "normal",
-              label: isRunning ? "Stop" : "Launch",
-              action: isRunning ? "tray-app-stop" : "tray-app-launch",
-              data: { id: app.id },
-              enabled: !busy,
-            },
-            {
-              type: "normal",
-              label: "Restart",
-              action: "tray-app-restart",
-              data: { id: app.id },
-              enabled: isRunning && !busy,
-            },
-          ],
+          action: "tray-app-click",
+          data: { id: app.id },
+          enabled: !busy,
         };
       });
 
@@ -946,16 +934,16 @@ function handleTrayAction(event: unknown) {
   if (action === "open-launcher") { openLauncher(); return; }
   if (action === "quit-app") { process.exit(0); }
 
-  if (id) {
-    if (action === "tray-app-window") {
-      const app = apps.find((a) => a.id === id);
-      if (app) openAppWindow(app);
-    } else if (action === "tray-app-launch") {
+  if (action === "tray-app-click" && id) {
+    const app = apps.find((a) => a.id === id);
+    if (!app) return;
+    if (app.status === "running") {
+      // Already running — bring up its window
+      openLauncher();
+      openAppWindow(app);
+    } else {
+      // Not running — launch it
       void handleIpc({ type: "app:launch", id });
-    } else if (action === "tray-app-stop") {
-      void handleIpc({ type: "app:stop", id });
-    } else if (action === "tray-app-restart") {
-      void handleIpc({ type: "app:restart", id });
     }
   }
 
@@ -969,6 +957,88 @@ function handleTrayAction(event: unknown) {
       void handleIpc({ type: "app:restart", id: app.id });
     }
   }
+}
+
+// ── Desktop icon helpers ────────────────────────────────────────
+const LAUNCH_SERVER_PORT = 42424;
+
+function startLaunchServer() {
+  try {
+    Bun.serve({
+      port: LAUNCH_SERVER_PORT,
+      fetch(req) {
+        const url = new URL(req.url);
+        if (url.pathname === "/launch") {
+          const id = url.searchParams.get("id");
+          if (id) {
+            const app = apps.find((a) => a.id === id);
+            if (app) {
+              if (app.status === "running") {
+                openLauncher();
+                openAppWindow(app);
+              } else {
+                void handleIpc({ type: "app:launch", id });
+                openLauncher();
+              }
+            }
+          }
+          return new Response("ok");
+        }
+        return new Response("not found", { status: 404 });
+      },
+    });
+  } catch {
+    // Port may already be in use if another instance is running — silently ignore
+  }
+}
+
+function desktopIconPath(app: DockerApp): string {
+  // Sanitise app name for use as a file/dir name
+  const safe = app.name.replace(/[/\\:*?"<>|]/g, "-");
+  return join(homedir(), "Desktop", `${safe}.app`);
+}
+
+function createDesktopIcon(app: DockerApp) {
+  if (process.platform !== "darwin") return;
+  try {
+    const appPath = desktopIconPath(app);
+    const macosDir = join(appPath, "Contents", "MacOS");
+    mkdirSync(macosDir, { recursive: true });
+
+    writeFileSync(
+      join(appPath, "Contents", "Info.plist"),
+      `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleExecutable</key><string>launch</string>
+  <key>CFBundleIdentifier</key><string>com.loadingdock.shortcut.${app.id}</string>
+  <key>CFBundleName</key><string>${app.name}</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleShortVersionString</key><string>1.0</string>
+  <key>LSUIElement</key><true/>
+  <key>LSBackgroundOnly</key><true/>
+</dict>
+</plist>`,
+    );
+
+    const script = join(macosDir, "launch");
+    writeFileSync(
+      script,
+      `#!/bin/bash\ncurl -s "http://localhost:${LAUNCH_SERVER_PORT}/launch?id=${app.id}" &\nopen -a "The Loading Dock(r)"\n`,
+    );
+    chmodSync(script, 0o755);
+  } catch (err) {
+    console.error("Failed to create desktop icon:", err);
+  }
+}
+
+function removeDesktopIcon(app: DockerApp) {
+  if (process.platform !== "darwin") return;
+  try {
+    rmSync(desktopIconPath(app), { recursive: true, force: true });
+  } catch {}
 }
 
 function setupMenu() {
