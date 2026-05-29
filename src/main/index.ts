@@ -556,7 +556,7 @@ async function handleIpc(message: IpcMessage) {
       await saveRegistry(apps);
       broadcast({ type: "apps:list", apps });
       broadcastOgImages();
-      createDesktopIcon(newApp);
+      void createDesktopIcon(newApp);
       break;
     }
     case "app:update": {
@@ -998,15 +998,48 @@ function desktopIconPath(app: DockerApp): string {
   return join(homedir(), "Desktop", `${safe}.app`);
 }
 
-function createDesktopIcon(app: DockerApp) {
+/** Derive a Dashboard Icons CDN slug from a Docker image reference. */
+function iconSlugForApp(image: string): string {
+  let slug = image.replace(/^[a-zA-Z0-9_-]+\.[a-zA-Z0-9._-]+(:\d+)?\//, "");
+  slug = slug.split(":")[0].split("@")[0];
+  slug = (slug.split("/").pop() ?? slug);
+  return slug;
+}
+
+async function createDesktopIcon(app: DockerApp) {
   if (process.platform !== "darwin") return;
   try {
     const appPath = desktopIconPath(app);
-    const macosDir = join(appPath, "Contents", "MacOS");
+    const contentsPath = join(appPath, "Contents");
+    const macosDir = join(contentsPath, "MacOS");
+    const resourcesDir = join(contentsPath, "Resources");
     mkdirSync(macosDir, { recursive: true });
+    mkdirSync(resourcesDir, { recursive: true });
 
+    // ── Download icon PNG from Dashboard Icons CDN ──────────────
+    const slug = iconSlugForApp(app.image);
+    const iconPng = join(resourcesDir, "icon.png");
+    const iconIcns = join(resourcesDir, "icon.icns");
+    let hasIcon = false;
+    try {
+      const resp = await fetch(
+        `https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons@main/png/${slug}.png`,
+      );
+      if (resp.ok) {
+        writeFileSync(iconPng, Buffer.from(await resp.arrayBuffer()));
+        // Convert PNG → ICNS using macOS built-in sips
+        const { exitCode } = Bun.spawnSync([
+          "sips", "-s", "format", "icns", iconPng, "--out", iconIcns,
+        ]);
+        hasIcon = exitCode === 0;
+      }
+    } catch {
+      // Icon fetch/convert failed — bundle will use the generic app icon
+    }
+
+    // ── Info.plist ───────────────────────────────────────────────
     writeFileSync(
-      join(appPath, "Contents", "Info.plist"),
+      join(contentsPath, "Info.plist"),
       `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
   "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -1016,13 +1049,15 @@ function createDesktopIcon(app: DockerApp) {
   <key>CFBundleIdentifier</key><string>com.loadingdock.shortcut.${app.id}</string>
   <key>CFBundleName</key><string>${app.name}</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>1.0</string>
+  <key>CFBundleShortVersionString</key><string>1.0</string>${hasIcon ? `
+  <key>CFBundleIconFile</key><string>icon</string>` : ""}
   <key>LSUIElement</key><true/>
   <key>LSBackgroundOnly</key><true/>
 </dict>
 </plist>`,
     );
 
+    // ── Launcher script ──────────────────────────────────────────
     const script = join(macosDir, "launch");
     writeFileSync(
       script,
