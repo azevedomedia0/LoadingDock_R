@@ -1,0 +1,56 @@
+name: Release
+
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build & publish (${{ matrix.os }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macOS
+            runner: macos-latest
+            build_cmd: build:mac
+            artifact_glob: "dist/*.zip dist/*.dmg"
+            suffix: mac-arm64.zip
+          - os: Windows
+            runner: windows-latest
+            build_cmd: build:win
+            artifact_glob: "dist/*.exe"
+            suffix: win-x64.exe
+          - os: Linux
+            runner: ubuntu-latest
+            build_cmd: build:linux
+            artifact_glob: "dist/*.AppImage"
+            suffix: linux-x64.AppImage
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - name: Run tests
+        run: bun test --timeout 30000 --ignore "src/e2e/**"
+      - name: Build ${{ matrix.os }}
+        run: bun run ${{ matrix.build_cmd }}
+      - name: Generate checksums
+        shell: bash
+        run: |
+          mkdir -p dist
+          for f in dist/*; do
+            sha256sum "$f" >> dist/checksums.txt 2>/dev/null || shasum -a 256 "$f" >> dist/checksums.txt
+          done
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*
+          body_path: RELEASE_NOTES.md
+          fail_on_unmatched_files: false

@@ -1,0 +1,139 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop, "release/**"]
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Lint + type-check (Linux only, fast gate) ─────────────────
+  lint:
+    name: Lint & typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bun run lint
+      - run: bun run typecheck
+
+  # ── Unit + renderer tests (all platforms) ─────────────────────
+  unit:
+    name: Unit tests (${{ matrix.os }})
+    needs: lint
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macOS
+            runner: macos-latest
+          - os: Windows
+            runner: windows-latest
+          - os: Linux
+            runner: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - name: Run unit tests
+        run: bun test --timeout 30000 --ignore "src/e2e/**"
+
+  # ── E2E smoke tests (Linux) ───────────────────────────────────
+  e2e-linux:
+    name: E2E smoke tests (Linux)
+    needs: unit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - name: Verify Docker available
+        run: docker info
+      - name: Pull test image
+        run: docker pull alpine:3.19
+      - name: Run E2E smoke tests
+        run: bun test src/e2e/smoke.test.ts --timeout 60000
+        env:
+          DOCKER_PATH: docker
+
+  # ── E2E smoke tests (macOS via colima) ───────────────────────
+  e2e-macos:
+    name: E2E smoke tests (macOS)
+    needs: unit
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - name: Start Docker via colima
+        run: |
+          brew install colima docker
+          colima start --cpu 2 --memory 4
+      - name: Pull test image
+        run: docker pull alpine:3.19
+      - name: Run E2E smoke tests
+        run: bun test src/e2e/smoke.test.ts --timeout 90000
+
+  # ── Windows: Docker unavailable, verify graceful skip ─────────
+  e2e-windows-skip:
+    name: E2E smoke tests (Windows – skip check)
+    needs: unit
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - name: Run E2E (expect graceful skip)
+        run: bun test src/e2e/smoke.test.ts --timeout 30000
+
+  # ── Build verification ────────────────────────────────────────
+  build:
+    name: Build (${{ matrix.os }})
+    needs: unit
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macOS
+            runner: macos-latest
+            build_cmd: build:mac
+          - os: Windows
+            runner: windows-latest
+            build_cmd: build:win
+          - os: Linux
+            runner: ubuntu-latest
+            build_cmd: build:linux
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - name: Build ${{ matrix.os }} artifact
+        run: bun run ${{ matrix.build_cmd }}
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: electrodocker-${{ matrix.os }}
+          path: |
+            build/
+            dist/
+          if-no-files-found: warn
+          retention-days: 14

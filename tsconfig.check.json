@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "src/shared/**/*.ts",
+    "src/main/docker.ts",
+    "src/main/compose.ts",
+    "src/main/registry.ts",
+    "src/main/*.test.ts",
+    "src/shared/*.test.ts"
+  ]
+}

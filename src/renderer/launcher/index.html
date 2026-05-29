@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>The Loading Dock(r)</title>
+    <link rel="stylesheet" href="https://fonts.bunny.net/css?family=cal-sans:600" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/iconoir-icons/iconoir@main/css/iconoir.min.css" />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <span class="logo">
+          <img src="../../../App_Icon.png" class="logo-icon" alt="" aria-hidden="true" />
+          The Loading Dock(r)
+        </span>
+        <div class="actions">
+          <button id="btn-check-update" class="btn-icon" title="Check for updates"><i class="iconoir-refresh-circular"></i></button>
+          <button id="btn-export-registry" class="btn-icon" title="Export registry"><i class="iconoir-upload"></i></button>
+          <button id="btn-import-registry" class="btn-icon" title="Import registry"><i class="iconoir-download"></i></button>
+          <button id="btn-add" class="btn-icon" title="Add app"><i class="iconoir-plus-circle"></i></button>
+        </div>
+      </header>
+
+      <!-- Update notification banner -->
+      <div id="update-banner" class="banner banner--update hidden">
+        <div class="update-banner__body">
+          <strong id="update-banner-title"></strong>
+          <span id="update-banner-notes"></span>
+        </div>
+        <div class="update-banner__progress hidden">
+          <div class="progress-bar">
+            <div id="update-progress-fill" class="progress-bar__fill" style="width:0%"></div>
+          </div>
+          <span id="update-progress-label">0%</span>
+        </div>
+        <div class="update-banner__actions">
+          <button id="btn-update-install" class="btn btn--primary btn--sm">Install</button>
+          <button id="btn-update-later" class="btn btn--ghost btn--sm">Later</button>
+        </div>
+      </div>
+
+      <div id="docker-warning" class="banner banner--warn hidden">
+        <span id="docker-warning-text">Starting Docker — please wait…</span>
+      </div>
+      <div id="error-banner" class="banner banner--error hidden"></div>
+      <div id="welcome-banner" class="banner hidden"></div>
+
+      <div class="toolbar-filters">
+        <input
+          id="app-search"
+          class="search-input"
+          type="search"
+          placeholder="Search installed apps…"
+          autocomplete="off"
+        />
+<button id="btn-hub" class="btn-hub-toolbar" title="Browse Docker Hub">
+          <img src="https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons@main/png/docker.png" alt="" class="btn-hub-toolbar__img" />
+          Docker Hub
+        </button>
+      </div>
+
+      <main class="sections">
+        <details id="section-installed" class="section-dropdown" open>
+          <summary>Installed</summary>
+          <div id="grid" class="app-grid"></div>
+        </details>
+<details id="section-recommended" class="section-dropdown" open>
+          <summary>Recommended Apps</summary>
+          <div class="store-panel">
+            <div id="store-grid" class="rec-grid"></div>
+          </div>
+        </details>
+      </main>
+
+      <!-- Add modal -->
+      <div id="modal-add" class="modal hidden">
+        <div class="modal-box">
+          <div class="modal-tabs">
+            <button class="modal-tab modal-tab--active" data-tab="app">Docker App</button>
+            <button class="modal-tab" data-tab="compose">Docker Compose</button>
+          </div>
+
+          <!-- Tab: Docker App -->
+          <div id="add-tab-app" class="tab-panel">
+            <label>Name <input id="add-name" type="text" placeholder="My App" /></label>
+            <label>Docker Image <input id="add-image" type="text" placeholder="nginx:latest" /></label>
+            <label>Ports <input id="add-ports" type="text" placeholder="8080:80" /></label>
+            <label>Open URL (optional) <input id="add-url" type="text" placeholder="http://localhost:8080" /></label>
+            <label>Group <input id="add-group" type="text" placeholder="databases" /></label>
+            <label>Tags (comma separated) <input id="add-tags" type="text" placeholder="db, local, backend" /></label>
+            <label>Restart Policy
+              <select id="add-restart">
+                <option value="no">No</option>
+                <option value="on-failure">On failure</option>
+                <option value="unless-stopped">Unless stopped</option>
+              </select>
+            </label>
+            <label>Healthcheck Command
+              <input id="add-health-cmd" type="text" placeholder="curl -f http://localhost || exit 1" />
+            </label>
+            <div class="split3">
+              <label>Interval (s) <input id="add-health-interval" type="number" min="1" placeholder="30" /></label>
+              <label>Timeout (s) <input id="add-health-timeout" type="number" min="1" placeholder="5" /></label>
+              <label>Retries <input id="add-health-retries" type="number" min="1" placeholder="3" /></label>
+            </div>
+            <div class="field-section">
+              <div class="field-section__header">
+                <span>Environment Variables</span>
+                <button class="btn btn--ghost btn--xs" id="add-env-add-row">+ Add</button>
+              </div>
+              <div id="add-env-table" class="kv-table"></div>
+            </div>
+            <div class="field-section">
+              <div class="field-section__header">
+                <span>Volumes</span>
+                <button class="btn btn--ghost btn--xs" id="add-vol-add-row">+ Add</button>
+              </div>
+              <div id="add-vol-table" class="vol-table"></div>
+            </div>
+          </div>
+
+          <!-- Tab: Docker Compose -->
+          <div id="add-tab-compose" class="tab-panel hidden">
+            <label>Project Name <input id="add-compose-project" type="text" placeholder="my-stack" /></label>
+            <label>Compose YAML
+              <textarea id="add-compose-yaml" rows="12" placeholder="services:&#10;  web:&#10;    image: nginx:latest&#10;    ports:&#10;      - &quot;8080:80&quot;"></textarea>
+            </label>
+          </div>
+
+          <div class="modal-actions">
+            <button id="btn-add-cancel" class="btn btn--ghost">Cancel</button>
+            <button id="btn-add-confirm" class="btn btn--primary">Add</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Edit modal -->
+      <div id="modal-edit" class="modal hidden">
+        <div class="modal-box">
+          <h2>Edit Docker App</h2>
+          <label>Name <input id="edit-name" type="text" /></label>
+          <label>Docker Image <input id="edit-image" type="text" /></label>
+          <label>Ports <input id="edit-ports" type="text" /></label>
+          <label>Open URL (optional) <input id="edit-url" type="text" /></label>
+          <label>Group <input id="edit-group" type="text" /></label>
+          <label>Tags (comma separated) <input id="edit-tags" type="text" /></label>
+          <label>Restart Policy
+            <select id="edit-restart">
+              <option value="no">No</option>
+              <option value="on-failure">On failure</option>
+              <option value="unless-stopped">Unless stopped</option>
+            </select>
+          </label>
+          <label>Healthcheck Command <input id="edit-health-cmd" type="text" /></label>
+          <div class="split3">
+            <label>Interval (s) <input id="edit-health-interval" type="number" min="1" /></label>
+            <label>Timeout (s) <input id="edit-health-timeout" type="number" min="1" /></label>
+            <label>Retries <input id="edit-health-retries" type="number" min="1" /></label>
+          </div>
+
+          <div class="field-section">
+            <div class="field-section__header">
+              <span>Environment Variables</span>
+              <button class="btn btn--ghost btn--xs" id="edit-env-add-row">+ Add</button>
+            </div>
+            <div id="edit-env-table" class="kv-table"></div>
+          </div>
+
+          <div class="field-section">
+            <div class="field-section__header">
+              <span>Volumes</span>
+              <button class="btn btn--ghost btn--xs" id="edit-vol-add-row">+ Add</button>
+            </div>
+            <div id="edit-vol-table" class="vol-table"></div>
+          </div>
+
+          <div class="modal-actions">
+            <button id="btn-edit-delete" class="btn btn--danger">Delete</button>
+            <button id="btn-edit-cancel" class="btn btn--ghost">Cancel</button>
+            <button id="btn-edit-confirm" class="btn btn--primary">Save</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Docker Hub modal -->
+      <div id="modal-hub" class="modal hidden">
+        <div class="modal-box modal-box--hub">
+          <h2>Docker Hub</h2>
+          <div class="hub-toolbar">
+            <input id="hub-search" type="text" placeholder="Search images (nginx, postgres, redis...)" />
+            <button id="btn-hub-search" class="btn btn--primary">Search</button>
+            <button id="btn-hub-popular" class="btn btn--ghost">Popular</button>
+            <button id="btn-hub-close" class="btn btn--ghost">Close</button>
+          </div>
+          <div id="hub-status" class="hub-status">Browse popular images</div>
+          <div id="hub-grid" class="hub-grid"></div>
+          <div id="hub-meta" class="hub-meta hidden"></div>
+        </div>
+      </div>
+
+      <footer class="settings-bar">
+        <label class="settings-bar__item" title="Launch The Loading Dock(r) automatically when you log in">
+          <input id="toggle-open-at-login" type="checkbox" />
+          Open at Login
+        </label>
+        <label class="settings-bar__item" title="Restart containers after repeated unhealthy health checks">
+          <input id="toggle-auto-restart" type="checkbox" checked />
+          Auto-restart on unhealthy
+        </label>
+        <label class="settings-bar__item" title="Automatically check for updates on launch">
+          <input id="toggle-auto-check-updates" type="checkbox" checked />
+          Check for updates
+        </label>
+        <label class="settings-bar__item" title="Release channel for auto-updates">
+          Channel
+          <select id="release-channel" class="status-filter status-filter--inline">
+            <option value="stable">stable</option>
+            <option value="beta">beta</option>
+          </select>
+        </label>
+      </footer>
+
+      <input id="registry-import-file" type="file" accept="application/json" class="hidden" />
+    </div>
+    <script type="module" src="./script.ts"></script>
+  </body>
+</html>

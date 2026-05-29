@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>App</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <div class="app-identity">
+          <span id="icon" class="app-icon">APP</span>
+          <div>
+            <div id="app-name" class="app-name">Loading...</div>
+            <div id="app-image" class="app-image"></div>
+          </div>
+        </div>
+        <div class="topbar-actions">
+          <span id="status-badge" class="badge badge--stopped">Stopped</span>
+          <button id="btn-launch" class="btn btn--primary">Launch</button>
+          <button id="btn-stop" class="btn btn--danger hidden">Stop</button>
+        </div>
+      </header>
+      <div id="error-banner" class="error-banner hidden"></div>
+      <div class="body">
+        <aside class="info-panel">
+          <section>
+            <h3>Health</h3>
+            <div id="health-value" class="detail-value">unknown</div>
+          </section>
+          <section>
+            <h3>Metrics</h3>
+            <select id="metrics-range" class="range-select">
+              <option value="1h">1h</option>
+              <option value="24h" selected>24h</option>
+              <option value="7d">7d</option>
+            </select>
+            <div id="metrics-value" class="detail-value">CPU 0% / MEM 0 MB</div>
+            <div id="metrics-chart" class="sparkline">-</div>
+          </section>
+          <section>
+            <h3>Ports</h3>
+            <ul id="ports-list" class="detail-list"></ul>
+          </section>
+          <section>
+            <h3>Environment</h3>
+            <ul id="env-list" class="detail-list"></ul>
+          </section>
+          <section id="section-url" class="hidden">
+            <h3>Web UI</h3>
+            <div class="webui-actions">
+              <button id="btn-open-webui" type="button" class="btn btn--primary btn--sm">
+                Open embedded
+              </button>
+              <button id="btn-open-external" type="button" class="btn btn--ghost btn--sm">
+                System browser
+              </button>
+            </div>
+            <div id="open-url-label" class="open-link muted-url"></div>
+          </section>
+          <section>
+            <h3>Options</h3>
+            <label
+              ><input id="toggle-mask" type="checkbox" checked /> Mask
+              secrets</label
+            >
+          </section>
+        </aside>
+        <div class="log-panel">
+          <div class="log-header">
+            <span>Logs</span>
+            <div class="log-toolbar">
+              <select id="log-level" class="log-level" title="Log level">
+                <option value="all">All levels</option>
+                <option value="error">Error</option>
+                <option value="warn">Warn</option>
+                <option value="info">Info</option>
+                <option value="system">System</option>
+              </select>
+              <input
+                id="log-filter"
+                class="log-filter"
+                type="text"
+                placeholder="Filter logs"
+              />
+              <button id="btn-download-log" class="btn-tiny">Download</button>
+              <button id="btn-clear-log" class="btn-tiny">Clear</button>
+            </div>
+          </div>
+          <pre id="log-output" class="log-output"></pre>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="./script.ts"></script>
+  </body>
+</html>

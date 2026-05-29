@@ -1,0 +1,31 @@
+{
+  "name": "loading-dock",
+  "version": "0.2.0",
+  "description": "Docker apps as desktop icons",
+  "scripts": {
+    "start": "bunx electrobun dev",
+    "build": "bunx electrobun build",
+    "build:mac": "bunx electrobun build --platform darwin",
+    "build:win": "bunx electrobun build --platform win32",
+    "build:linux": "bunx electrobun build --platform linux",
+    "postinstall": "node scripts/patch-electrobun-rpc.mjs",
+    "test": "bun test",
+    "lint": "eslint \"src/**/*.ts\" \"electrobun.config.ts\"",
+    "format:check": "prettier --check \"src/**/*.{ts,css,html}\" \"*.{json,md,ts}\"",
+    "typecheck": "bunx tsc -p tsconfig.check.json --noEmit"
+  },
+  "dependencies": {
+    "electrobun": "latest",
+    "js-yaml": "^4.1.1"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/js-yaml": "^4.0.9",
+    "@types/three": "^0.184.1",
+    "@typescript-eslint/eslint-plugin": "^8.46.3",
+    "@typescript-eslint/parser": "^8.46.3",
+    "eslint": "^9.38.0",
+    "prettier": "^3.6.2",
+    "typescript": "^5.0.0"
+  }
+}
