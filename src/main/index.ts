@@ -761,6 +761,13 @@ async function restartAppForHealth(app: DockerApp) {
 }
 
 function broadcast(message: IpcMessage) {
+  // Rebuild tray menu whenever app status or list changes
+  if (
+    message.type === "app:status" ||
+    message.type === "apps:list"
+  ) {
+    updateTrayMenu();
+  }
   if (message.type === "error") {
     recordError("ui:error", message.message);
   }
@@ -859,24 +866,109 @@ function startRuntimeTelemetry() {
   }, 5000);
 }
 
+let trayInstance: InstanceType<typeof Tray> | null = null;
+
 function setupTray() {
-  const tray = new Tray({
+  trayInstance = new Tray({
     image: TRAY_ICON_PATH,
     template: true,
     width: 16,
     height: 16,
   });
-  tray.on("tray-clicked", () => openLauncher());
-  tray.setMenu([
+  trayInstance.on("tray-clicked", handleTrayAction);
+  updateTrayMenu();
+}
+
+function updateTrayMenu() {
+  if (!trayInstance) return;
+
+  // Per-app submenu items
+  const appItems: any[] = apps.length === 0
+    ? [{ type: "normal", label: "No apps installed", enabled: false }]
+    : apps.map((app) => {
+        const isRunning = app.status === "running";
+        const busy = app.status === "starting" || app.status === "stopping";
+        const dot = isRunning ? "● " : app.status === "error" ? "✕ " : "○ ";
+        const statusText = app.status === "stopped"
+          ? "Offline"
+          : app.status.charAt(0).toUpperCase() + app.status.slice(1);
+        return {
+          type: "normal",
+          label: `${dot}${app.name}`,
+          tooltip: statusText,
+          submenu: [
+            {
+              type: "normal",
+              label: "Open Window",
+              action: "tray-app-window",
+              data: { id: app.id },
+            },
+            { type: "separator" },
+            {
+              type: "normal",
+              label: isRunning ? "Stop" : "Launch",
+              action: isRunning ? "tray-app-stop" : "tray-app-launch",
+              data: { id: app.id },
+              enabled: !busy,
+            },
+            {
+              type: "normal",
+              label: "Restart",
+              action: "tray-app-restart",
+              data: { id: app.id },
+              enabled: isRunning && !busy,
+            },
+          ],
+        };
+      });
+
+  const hasRunning = apps.some((a) => a.status === "running");
+
+  trayInstance.setMenu([
     { type: "normal", label: "Open The Loading Dock(r)", action: "open-launcher" },
+    { type: "separator" },
+    ...appItems,
+    { type: "separator" },
+    { type: "normal", label: "Stop All", action: "tray-stop-all", enabled: hasRunning },
+    { type: "normal", label: "Restart All", action: "tray-restart-all", enabled: hasRunning },
+    { type: "separator" },
+    { type: "normal", label: "Settings", action: "open-launcher" },
     { type: "separator" },
     { type: "normal", label: "Quit", action: "quit-app" },
   ]);
-  tray.on("tray-clicked", (event: unknown) => {
-    const action = (event as { action?: string } | undefined)?.action;
-    if (action === "open-launcher") openLauncher();
-    if (action === "quit-app") process.exit(0);
-  });
+}
+
+function handleTrayAction(event: unknown) {
+  const ev = event as { action?: string; data?: { id?: string } } | undefined;
+  const action = ev?.action;
+  const id = ev?.data?.id;
+
+  if (action === "open-launcher") { openLauncher(); return; }
+  if (action === "quit-app") { process.exit(0); }
+
+  if (id) {
+    if (action === "tray-app-window") {
+      const app = apps.find((a) => a.id === id);
+      if (app) openAppWindow(app);
+    } else if (action === "tray-app-launch") {
+      void handleIpc({ type: "app:launch", id });
+    } else if (action === "tray-app-stop") {
+      void handleIpc({ type: "app:stop", id });
+    } else if (action === "tray-app-restart") {
+      void handleIpc({ type: "app:restart", id });
+    }
+  }
+
+  if (action === "tray-stop-all") {
+    for (const app of apps.filter((a) => a.status === "running")) {
+      void handleIpc({ type: "app:stop", id: app.id });
+    }
+  }
+  if (action === "tray-restart-all") {
+    for (const app of apps.filter((a) => a.status === "running")) {
+      void handleIpc({ type: "app:restart", id: app.id });
+    }
+  }
 }
 
 function setupMenu() {
