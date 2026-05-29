@@ -222,22 +222,7 @@ function filteredApps(): DockerApp[] {
 }
 
 function refreshGroupFilterOptions() {
-  const select = document.getElementById("group-filter") as HTMLSelectElement;
-  const current = select.value;
-  const groups = collectGroups(apps);
-  while (select.options.length > 1) select.remove(1);
-  for (const g of groups) {
-    const opt = document.createElement("option");
-    opt.value = g;
-    opt.textContent = g;
-    select.appendChild(opt);
-  }
-  if (groups.includes(current) || current === "all") {
-    select.value = current;
-  } else {
-    select.value = "all";
-    groupFilter = "all";
-  }
+  // group-filter dropdown removed from UI — no-op
 }
 
 function wireCardButtons(card: HTMLElement, app: DockerApp) {
