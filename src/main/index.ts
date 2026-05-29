@@ -251,7 +251,7 @@ function openLauncher() {
     broadcastSettingsState();
     broadcastOgImages();
   });
-  (launcherWindow.webview as any).on(
+  (launcherWindow.webview as any).rpc.addMessageListener(
     "ipc-message",
     async (message: IpcMessage) => await handleIpc(message),
   );
@@ -289,7 +289,7 @@ function openAppWindow(app: DockerApp) {
       points: metricsHistory.get(app.id) ?? [],
     });
   });
-  (win.webview as any).on(
+  (win.webview as any).rpc.addMessageListener(
     "ipc-message",
     async (message: IpcMessage) => await handleIpc(message),
   );
