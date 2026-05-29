@@ -111,19 +111,68 @@ function updateStatus(status: DockerApp["status"]) {
   if (status === "running") {
     btnLaunch.classList.add("hidden");
     btnStop.classList.remove("hidden");
+    loadWebUI();
   } else {
     btnLaunch.classList.remove("hidden");
     btnStop.classList.add("hidden");
+    clearWebUI(status);
   }
   btnLaunch.disabled = busy;
   btnStop.disabled = busy;
 }
+
+function loadWebUI() {
+  const frame = document.getElementById("webui-frame") as HTMLIFrameElement;
+  const placeholder = document.getElementById("webui-placeholder")!;
+  if (!currentApp?.openUrl) {
+    placeholder.classList.remove("hidden");
+    frame.classList.add("hidden");
+    document.getElementById("webui-placeholder-msg")!.textContent =
+      "No Web UI URL configured for this app.";
+    return;
+  }
+  if (frame.src !== currentApp.openUrl) {
+    frame.src = currentApp.openUrl;
+  }
+  frame.classList.remove("hidden");
+  placeholder.classList.add("hidden");
+}
+
+function clearWebUI(status: DockerApp["status"]) {
+  const frame = document.getElementById("webui-frame") as HTMLIFrameElement;
+  const placeholder = document.getElementById("webui-placeholder")!;
+  frame.src = "about:blank";
+  frame.classList.add("hidden");
+  placeholder.classList.remove("hidden");
+  document.getElementById("webui-placeholder-msg")!.textContent =
+    status === "stopped" || status === "error"
+      ? "Start the app to load its Web UI."
+      : "Loading…";
+}
+
+// ── Tab switching ────────────────────────────────────────────────
+let activeTab: "webui" | "logs" = "webui";
+
+function switchTab(tab: "webui" | "logs") {
+  activeTab = tab;
+  document.querySelectorAll<HTMLElement>(".tab-btn").forEach((btn) => {
+    btn.classList.toggle("tab-btn--active", btn.dataset.tab === tab);
+  });
+  document.getElementById("tab-webui")!.classList.toggle("hidden", tab !== "webui");
+  document.getElementById("tab-logs")!.classList.toggle("hidden", tab !== "logs");
+}
+
+document.querySelectorAll<HTMLElement>(".tab-btn").forEach((btn) => {
+  btn.addEventListener("click", () => switchTab(btn.dataset.tab as "webui" | "logs"));
+});
 
 ev.on("ipc-message", (msg: IpcMessage) => {
   switch (msg.type) {
     case "app:open-window":
       currentApp = msg.app;
       renderApp(msg.app);
+      if (msg.app.status === "running") loadWebUI();
+      else clearWebUI(msg.app.status);
       break;
     case "app:status":
       if (currentApp && msg.id === currentApp.id) {
@@ -183,10 +232,6 @@ ev.on("ipc-message", (msg: IpcMessage) => {
   }
 });
 
-document.getElementById("btn-open-webui")!.addEventListener("click", () => {
-  if (!currentApp) return;
-  send({ type: "app:open-webui", id: currentApp.id });
-});
 document.getElementById("btn-open-external")!.addEventListener("click", () => {
   if (!currentApp) return;
   send({ type: "app:open-external", id: currentApp.id });
