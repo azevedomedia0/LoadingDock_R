@@ -99,6 +99,8 @@ interface RecommendedApp {
   openUrl?: string;
   restartPolicy?: "no" | "on-failure" | "unless-stopped";
   tags?: string[];
+  env?: Record<string, string>;
+  volumes?: string[];
 }
 
 const ICON_CDN =
@@ -106,41 +108,104 @@ const ICON_CDN =
 
 const RECOMMENDED_APPS: RecommendedApp[] = [
   // Self-hosted Essentials
-  { category: "Self-hosted Essentials", name: "Nextcloud", image: "nextcloud:latest", icon: "☁️", iconSlug: "nextcloud", description: "File hosting, calendar, contacts, and full collaboration suite.", ports: ["8080:80"], openUrl: "http://localhost:8080", restartPolicy: "unless-stopped" },
-  { category: "Self-hosted Essentials", name: "WordPress", image: "wordpress:latest", icon: "📝", iconSlug: "wordpress", description: "The world's most popular CMS for building websites and blogs.", ports: ["8082:80"], openUrl: "http://localhost:8082", restartPolicy: "unless-stopped" },
-  { category: "Self-hosted Essentials", name: "Syncthing", image: "syncthing/syncthing:latest", icon: "🔄", iconSlug: "syncthing", description: "Continuous file synchronization across all your devices.", ports: ["8384:8384", "22000:22000"], openUrl: "http://localhost:8384", restartPolicy: "unless-stopped" },
-  { category: "Self-hosted Essentials", name: "Coolify", image: "coollabsio/coolify:latest", icon: "🚀", iconSlug: "coolify", description: "Self-hosted PaaS — deploy apps, databases, and services with ease.", ports: ["8000:8000"], openUrl: "http://localhost:8000", restartPolicy: "unless-stopped" },
-  { category: "Self-hosted Essentials", name: "Puter", image: "ghcr.io/heyputer/puter:latest", icon: "🖥️", iconSlug: "puter", description: "Self-hosted cloud desktop — files, apps, and AI in your browser.", ports: ["4100:4100"], openUrl: "http://localhost:4100", restartPolicy: "unless-stopped", tags: ["cloud", "desktop", "storage"] },
-  { category: "Self-hosted Essentials", name: "Tailscale", image: "tailscale/tailscale:latest", icon: "🔐", iconSlug: "tailscale", description: "Mesh VPN for secure private networking across all your devices. Complete auth via container logs after launch.", ports: [], restartPolicy: "unless-stopped", tags: ["vpn", "mesh", "tailscale", "network"] },
+  { category: "Self-hosted Essentials", name: "Nextcloud", image: "nextcloud:latest", icon: "☁️", iconSlug: "nextcloud", description: "File hosting, calendar, contacts, and full collaboration suite.", ports: ["8080:80"], openUrl: "http://localhost:8080", restartPolicy: "unless-stopped",
+    volumes: ["~/.loading-dock/nextcloud:/var/www/html"] },
+
+  { category: "Self-hosted Essentials", name: "WordPress", image: "wordpress:latest", icon: "📝", iconSlug: "wordpress", description: "The world's most popular CMS for building websites and blogs.", ports: ["8082:80"], openUrl: "http://localhost:8082", restartPolicy: "unless-stopped",
+    env: { WORDPRESS_DB_HOST: "db", WORDPRESS_DB_USER: "wordpress", WORDPRESS_DB_PASSWORD: "changeme", WORDPRESS_DB_NAME: "wordpress" },
+    volumes: ["~/.loading-dock/wordpress:/var/www/html"] },
+
+  { category: "Self-hosted Essentials", name: "Syncthing", image: "syncthing/syncthing:latest", icon: "🔄", iconSlug: "syncthing", description: "Continuous file synchronization across all your devices.", ports: ["8384:8384", "22000:22000"], openUrl: "http://localhost:8384", restartPolicy: "unless-stopped",
+    volumes: ["~/.loading-dock/syncthing/config:/var/syncthing/config", "~/Sync:/var/syncthing/data"] },
+
+  { category: "Self-hosted Essentials", name: "Coolify", image: "coollabsio/coolify:latest", icon: "🚀", iconSlug: "coolify", description: "Self-hosted PaaS — deploy apps, databases, and services with ease.", ports: ["8000:8000"], openUrl: "http://localhost:8000", restartPolicy: "unless-stopped",
+    volumes: ["~/.loading-dock/coolify/data:/data", "/var/run/docker.sock:/var/run/docker.sock"] },
+
+  { category: "Self-hosted Essentials", name: "Puter", image: "ghcr.io/heyputer/puter:latest", icon: "🖥️", iconSlug: "puter", description: "Self-hosted cloud desktop — files, apps, and AI in your browser.", ports: ["4100:4100"], openUrl: "http://localhost:4100", restartPolicy: "unless-stopped", tags: ["cloud", "desktop", "storage"],
+    volumes: ["~/.loading-dock/puter/config:/root/.config/puter"] },
+
+  { category: "Self-hosted Essentials", name: "Tailscale", image: "tailscale/tailscale:latest", icon: "🔐", iconSlug: "tailscale", description: "Mesh VPN for secure private networking across all your devices. Complete auth via container logs after launch.", ports: [], restartPolicy: "unless-stopped", tags: ["vpn", "mesh", "tailscale", "network"],
+    env: { TS_AUTHKEY: "" },
+    volumes: ["~/.loading-dock/tailscale/state:/var/lib/tailscale", "/dev/net/tun:/dev/net/tun"] },
+
   // Media Servers
-  { category: "Media Servers", name: "Plex", image: "lscr.io/linuxserver/plex:latest", icon: "🎬", iconSlug: "plex", description: "Powerful media server for movies, TV, music, and photos.", ports: ["32400:32400"], openUrl: "http://localhost:32400/web", restartPolicy: "unless-stopped" },
-  { category: "Media Servers", name: "Jellyfin", image: "jellyfin/jellyfin:latest", icon: "🎞️", iconSlug: "jellyfin", description: "Free open-source media system — no subscriptions, no tracking.", ports: ["8096:8096"], openUrl: "http://localhost:8096", restartPolicy: "unless-stopped" },
-  { category: "Media Servers", name: "Navidrome", image: "deluan/navidrome:latest", icon: "🎵", iconSlug: "navidrome", description: "Modern self-hosted music server and streamer, compatible with Subsonic clients.", ports: ["4533:4533"], openUrl: "http://localhost:4533", restartPolicy: "unless-stopped", tags: ["music", "streaming", "audio"] },
+  { category: "Media Servers", name: "Plex", image: "lscr.io/linuxserver/plex:latest", icon: "🎬", iconSlug: "plex", description: "Powerful media server for movies, TV, music, and photos.", ports: ["32400:32400"], openUrl: "http://localhost:32400/web", restartPolicy: "unless-stopped",
+    env: { PUID: "1000", PGID: "1000", TZ: "UTC", VERSION: "docker", PLEX_CLAIM: "" },
+    volumes: ["~/.loading-dock/plex/config:/config", "~/Movies:/movies", "~/Music:/music", "~/TV:/tv"] },
+
+  { category: "Media Servers", name: "Jellyfin", image: "jellyfin/jellyfin:latest", icon: "🎞️", iconSlug: "jellyfin", description: "Free open-source media system — no subscriptions, no tracking.", ports: ["8096:8096"], openUrl: "http://localhost:8096", restartPolicy: "unless-stopped",
+    env: { TZ: "UTC" },
+    volumes: ["~/.loading-dock/jellyfin/config:/config", "~/.loading-dock/jellyfin/cache:/cache", "~/Movies:/movies", "~/Music:/music", "~/TV:/tv"] },
+
+  { category: "Media Servers", name: "Navidrome", image: "deluan/navidrome:latest", icon: "🎵", iconSlug: "navidrome", description: "Modern self-hosted music server and streamer, compatible with Subsonic clients.", ports: ["4533:4533"], openUrl: "http://localhost:4533", restartPolicy: "unless-stopped", tags: ["music", "streaming", "audio"],
+    env: { ND_MUSICFOLDER: "/music", ND_DATAFOLDER: "/data", ND_LOGLEVEL: "info" },
+    volumes: ["~/.loading-dock/navidrome/data:/data", "~/Music:/music:ro"] },
 
   // Smart Home & Network
-  { category: "Smart Home & Network", name: "Home Assistant", image: "ghcr.io/home-assistant/home-assistant:latest", icon: "🏠", iconSlug: "home-assistant", description: "Open source home automation platform for smart home control.", ports: ["8123:8123"], openUrl: "http://localhost:8123", restartPolicy: "unless-stopped" },
-  { category: "Smart Home & Network", name: "Pi-hole", image: "pihole/pihole:latest", icon: "🛡️", iconSlug: "pi-hole", description: "Network-wide ad and tracker blocking via DNS sinkhole.", ports: ["8053:80", "53:53"], openUrl: "http://localhost:8053/admin", restartPolicy: "unless-stopped" },
-  { category: "Smart Home & Network", name: "Nginx Proxy Manager", image: "jc21/nginx-proxy-manager:latest", icon: "🔀", iconSlug: "nginx-proxy-manager", description: "Reverse proxy with a web UI for hosts, SSL (Let's Encrypt), and access lists. Default login: admin@example.com / changeme.", ports: ["8181:81", "8880:80", "4443:443"], openUrl: "http://localhost:8181", restartPolicy: "unless-stopped", tags: ["proxy", "ssl", "network"] },
-  { category: "Smart Home & Network", name: "Cloudflare DDNS", image: "favonia/cloudflare-ddns:latest", icon: "📝", iconSlug: "cloudflare", description: "Updates Cloudflare DNS when your public IP changes. Add CLOUDFLARE_API_TOKEN and DOMAINS (e.g. example.com) in env after install.", ports: [], restartPolicy: "unless-stopped", tags: ["cloudflare", "ddns", "dns", "network"] },
-  { category: "Smart Home & Network", name: "Homebridge", image: "homebridge/homebridge:latest", icon: "🏡", iconSlug: "homebridge", description: "Bridge non-HomeKit smart home devices to Apple HomeKit via a lightweight Node.js server.", ports: ["8581:8581"], openUrl: "http://localhost:8581", restartPolicy: "unless-stopped", tags: ["homekit", "smart-home", "apple", "bridge"] },
-  { category: "Smart Home & Network", name: "Guacamole", image: "guacamole/guacamole:latest", icon: "🖥️", iconSlug: "guacamole", description: "Clientless remote desktop gateway — access RDP, VNC, and SSH from your browser. Requires a guacd container.", ports: ["8888:8080"], openUrl: "http://localhost:8888/guacamole", restartPolicy: "unless-stopped", tags: ["remote-desktop", "rdp", "vnc", "ssh"] },
+  { category: "Smart Home & Network", name: "Home Assistant", image: "ghcr.io/home-assistant/home-assistant:latest", icon: "🏠", iconSlug: "home-assistant", description: "Open source home automation platform for smart home control.", ports: ["8123:8123"], openUrl: "http://localhost:8123", restartPolicy: "unless-stopped",
+    env: { TZ: "UTC" },
+    volumes: ["~/.loading-dock/home-assistant/config:/config"] },
+
+  { category: "Smart Home & Network", name: "Pi-hole", image: "pihole/pihole:latest", icon: "🛡️", iconSlug: "pi-hole", description: "Network-wide ad and tracker blocking via DNS sinkhole.", ports: ["8053:80", "53:53"], openUrl: "http://localhost:8053/admin", restartPolicy: "unless-stopped",
+    env: { TZ: "UTC", WEBPASSWORD: "changeme" },
+    volumes: ["~/.loading-dock/pihole/etc-pihole:/etc/pihole", "~/.loading-dock/pihole/etc-dnsmasq.d:/etc/dnsmasq.d"] },
+
+  { category: "Smart Home & Network", name: "Nginx Proxy Manager", image: "jc21/nginx-proxy-manager:latest", icon: "🔀", iconSlug: "nginx-proxy-manager", description: "Reverse proxy with a web UI for hosts, SSL (Let's Encrypt), and access lists. Default login: admin@example.com / changeme.", ports: ["8181:81", "8880:80", "4443:443"], openUrl: "http://localhost:8181", restartPolicy: "unless-stopped", tags: ["proxy", "ssl", "network"],
+    volumes: ["~/.loading-dock/nginx-proxy-manager/data:/data", "~/.loading-dock/nginx-proxy-manager/letsencrypt:/etc/letsencrypt"] },
+
+  { category: "Smart Home & Network", name: "Cloudflare DDNS", image: "favonia/cloudflare-ddns:latest", icon: "📝", iconSlug: "cloudflare", description: "Updates Cloudflare DNS when your public IP changes.", ports: [], restartPolicy: "unless-stopped", tags: ["cloudflare", "ddns", "dns", "network"],
+    env: { CLOUDFLARE_API_TOKEN: "your_token_here", DOMAINS: "example.com", PROXIED: "false" } },
+
+  { category: "Smart Home & Network", name: "Homebridge", image: "homebridge/homebridge:latest", icon: "🏡", iconSlug: "homebridge", description: "Bridge non-HomeKit smart home devices to Apple HomeKit via a lightweight Node.js server.", ports: ["8581:8581"], openUrl: "http://localhost:8581", restartPolicy: "unless-stopped", tags: ["homekit", "smart-home", "apple", "bridge"],
+    env: { TZ: "UTC", HOMEBRIDGE_CONFIG_UI: "1", HOMEBRIDGE_CONFIG_UI_PORT: "8581" },
+    volumes: ["~/.loading-dock/homebridge/config:/homebridge"] },
+
+  { category: "Smart Home & Network", name: "Guacamole", image: "guacamole/guacamole:latest", icon: "🖥️", iconSlug: "guacamole", description: "Clientless remote desktop gateway — access RDP, VNC, and SSH from your browser. Requires a guacd container.", ports: ["8888:8080"], openUrl: "http://localhost:8888/guacamole", restartPolicy: "unless-stopped", tags: ["remote-desktop", "rdp", "vnc", "ssh"],
+    env: { GUACD_HOSTNAME: "localhost", GUACD_PORT: "4822" } },
 
   // AI & Automation
-  { category: "AI & Automation", name: "Ollama", image: "ollama/ollama:latest", icon: "🤖", iconSlug: "ollama", description: "Run large language models locally with a simple REST API.", ports: ["11434:11434"], restartPolicy: "unless-stopped" },
-  { category: "AI & Automation", name: "n8n", image: "n8nio/n8n:latest", icon: "⚙️", iconSlug: "n8n", description: "Workflow automation with 400+ integrations and a visual node editor.", ports: ["5678:5678"], openUrl: "http://localhost:5678", restartPolicy: "unless-stopped" },
-  { category: "AI & Automation", name: "OpenClaw", image: "openclaw/openclaw:latest", icon: "🦀", iconSlug: "openclaw", description: "Open-source orchestration and automation platform.", ports: ["9000:9000"], openUrl: "http://localhost:9000", restartPolicy: "unless-stopped" },
-  { category: "AI & Automation", name: "Hermes Chat", image: "ghcr.io/hermeschat/hermes:latest", icon: "💬", iconUrl: "https://agentlocker.ai/static/uploads/ac3292ea-f056-4667-a3a8-f3c5e1467242_hermes.webp", description: "Self-hosted team chat and messaging platform.", ports: ["3000:3000"], openUrl: "http://localhost:3000", restartPolicy: "unless-stopped" },
+  { category: "AI & Automation", name: "Ollama", image: "ollama/ollama:latest", icon: "🤖", iconSlug: "ollama", description: "Run large language models locally with a simple REST API.", ports: ["11434:11434"], restartPolicy: "unless-stopped",
+    volumes: ["~/.loading-dock/ollama:/root/.ollama"] },
+
+  { category: "AI & Automation", name: "n8n", image: "n8nio/n8n:latest", icon: "⚙️", iconSlug: "n8n", description: "Workflow automation with 400+ integrations and a visual node editor.", ports: ["5678:5678"], openUrl: "http://localhost:5678", restartPolicy: "unless-stopped",
+    env: { N8N_BASIC_AUTH_ACTIVE: "false", N8N_PORT: "5678" },
+    volumes: ["~/.loading-dock/n8n:/home/node/.n8n"] },
+
+  { category: "AI & Automation", name: "OpenClaw", image: "openclaw/openclaw:latest", icon: "🦀", iconSlug: "openclaw", description: "Open-source orchestration and automation platform.", ports: ["9000:9000"], openUrl: "http://localhost:9000", restartPolicy: "unless-stopped",
+    volumes: ["~/.loading-dock/openclaw/data:/app/data"] },
+
+  { category: "AI & Automation", name: "Hermes Chat", image: "ghcr.io/hermeschat/hermes:latest", icon: "💬", iconUrl: "https://agentlocker.ai/static/uploads/ac3292ea-f056-4667-a3a8-f3c5e1467242_hermes.webp", description: "Self-hosted team chat and messaging platform.", ports: ["3000:3000"], openUrl: "http://localhost:3000", restartPolicy: "unless-stopped",
+    volumes: ["~/.loading-dock/hermes/data:/app/data"] },
 
   // Media Management
-  { category: "Media Management", name: "Radarr", image: "lscr.io/linuxserver/radarr:latest", icon: "🎥", iconSlug: "radarr", description: "Movie collection manager with automated downloading and organisation.", ports: ["7878:7878"], openUrl: "http://localhost:7878", restartPolicy: "unless-stopped" },
-  { category: "Media Management", name: "Sonarr", image: "lscr.io/linuxserver/sonarr:latest", icon: "📺", iconSlug: "sonarr", description: "TV series manager with automatic episode monitoring and downloading.", ports: ["8989:8989"], openUrl: "http://localhost:8989", restartPolicy: "unless-stopped" },
-  { category: "Media Management", name: "Bazarr", image: "lscr.io/linuxserver/bazarr:latest", icon: "🗣️", iconSlug: "bazarr", description: "Subtitle manager that integrates with Radarr and Sonarr.", ports: ["6767:6767"], openUrl: "http://localhost:6767", restartPolicy: "unless-stopped" },
-  { category: "Media Management", name: "Lidarr", image: "lscr.io/linuxserver/lidarr:latest", icon: "🎵", iconSlug: "lidarr", description: "Music collection manager with automated album downloading.", ports: ["8686:8686"], openUrl: "http://localhost:8686", restartPolicy: "unless-stopped" },
-  { category: "Media Management", name: "qBittorrent", image: "lscr.io/linuxserver/qbittorrent:latest", icon: "⬇️", iconSlug: "qbittorrent", description: "Feature-rich torrent client with a web-based management UI.", ports: ["8090:8080", "6881:6881"], openUrl: "http://localhost:8090", restartPolicy: "unless-stopped" },
+  { category: "Media Management", name: "Radarr", image: "lscr.io/linuxserver/radarr:latest", icon: "🎥", iconSlug: "radarr", description: "Movie collection manager with automated downloading and organisation.", ports: ["7878:7878"], openUrl: "http://localhost:7878", restartPolicy: "unless-stopped",
+    env: { PUID: "1000", PGID: "1000", TZ: "UTC" },
+    volumes: ["~/.loading-dock/radarr/config:/config", "~/Movies:/movies", "~/Downloads:/downloads"] },
+
+  { category: "Media Management", name: "Sonarr", image: "lscr.io/linuxserver/sonarr:latest", icon: "📺", iconSlug: "sonarr", description: "TV series manager with automatic episode monitoring and downloading.", ports: ["8989:8989"], openUrl: "http://localhost:8989", restartPolicy: "unless-stopped",
+    env: { PUID: "1000", PGID: "1000", TZ: "UTC" },
+    volumes: ["~/.loading-dock/sonarr/config:/config", "~/TV:/tv", "~/Downloads:/downloads"] },
+
+  { category: "Media Management", name: "Bazarr", image: "lscr.io/linuxserver/bazarr:latest", icon: "🗣️", iconSlug: "bazarr", description: "Subtitle manager that integrates with Radarr and Sonarr.", ports: ["6767:6767"], openUrl: "http://localhost:6767", restartPolicy: "unless-stopped",
+    env: { PUID: "1000", PGID: "1000", TZ: "UTC" },
+    volumes: ["~/.loading-dock/bazarr/config:/config", "~/Movies:/movies", "~/TV:/tv"] },
+
+  { category: "Media Management", name: "Lidarr", image: "lscr.io/linuxserver/lidarr:latest", icon: "🎵", iconSlug: "lidarr", description: "Music collection manager with automated album downloading.", ports: ["8686:8686"], openUrl: "http://localhost:8686", restartPolicy: "unless-stopped",
+    env: { PUID: "1000", PGID: "1000", TZ: "UTC" },
+    volumes: ["~/.loading-dock/lidarr/config:/config", "~/Music:/music", "~/Downloads:/downloads"] },
+
+  { category: "Media Management", name: "qBittorrent", image: "lscr.io/linuxserver/qbittorrent:latest", icon: "⬇️", iconSlug: "qbittorrent", description: "Feature-rich torrent client with a web-based management UI.", ports: ["8090:8080", "6881:6881"], openUrl: "http://localhost:8090", restartPolicy: "unless-stopped",
+    env: { PUID: "1000", PGID: "1000", TZ: "UTC", WEBUI_PORT: "8090" },
+    volumes: ["~/.loading-dock/qbittorrent/config:/config", "~/Downloads:/downloads"] },
 
   // Photo Libraries
-  { category: "Photo Libraries", name: "Immich", image: "ghcr.io/immich-app/immich-server:latest", icon: "📸", iconSlug: "immich", description: "Self-hosted photo and video backup with AI-powered search and faces.", ports: ["2283:3001"], openUrl: "http://localhost:2283", restartPolicy: "unless-stopped" },
-  { category: "Photo Libraries", name: "PhotoPrism", image: "photoprism/photoprism:latest", icon: "🖼️", iconSlug: "photoprism", description: "AI-powered photo management with face recognition and geo-tagging.", ports: ["2342:2342"], openUrl: "http://localhost:2342", restartPolicy: "unless-stopped" },
+  { category: "Photo Libraries", name: "Immich", image: "ghcr.io/immich-app/immich-server:latest", icon: "📸", iconSlug: "immich", description: "Self-hosted photo and video backup with AI-powered search and faces.", ports: ["2283:3001"], openUrl: "http://localhost:2283", restartPolicy: "unless-stopped",
+    env: { DB_PASSWORD: "postgres", DB_USERNAME: "postgres", DB_DATABASE_NAME: "immich", REDIS_HOSTNAME: "localhost" },
+    volumes: ["~/.loading-dock/immich/upload:/usr/src/app/upload", "~/Pictures:/usr/src/app/upload/library"] },
+
+  { category: "Photo Libraries", name: "PhotoPrism", image: "photoprism/photoprism:latest", icon: "🖼️", iconSlug: "photoprism", description: "AI-powered photo management with face recognition and geo-tagging.", ports: ["2342:2342"], openUrl: "http://localhost:2342", restartPolicy: "unless-stopped",
+    env: { PHOTOPRISM_AUTH_MODE: "password", PHOTOPRISM_ADMIN_USER: "admin", PHOTOPRISM_ADMIN_PASSWORD: "changeme", PHOTOPRISM_HTTP_COMPRESSION: "gzip" },
+    volumes: ["~/.loading-dock/photoprism/storage:/photoprism/storage", "~/Pictures:/photoprism/originals"] },
 ];
 
 function send(msg: IpcMessage) {
@@ -239,6 +304,10 @@ function wireCardButtons(card: HTMLElement, app: DockerApp) {
       }
     });
   }
+  card.querySelector("[data-action='stop']")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    send({ type: "app:stop", id: app.id });
+  });
   card.querySelector("[data-action='restart']")?.addEventListener("click", (e) => {
     e.stopPropagation();
     send({ type: "app:restart", id: app.id });
@@ -709,8 +778,8 @@ function fillAddFromRec(app: RecommendedApp) {
   (document.getElementById("add-health-retries") as HTMLInputElement).value = "";
   (document.getElementById("add-group") as HTMLInputElement).value = app.category;
   (document.getElementById("add-tags") as HTMLInputElement).value = (app.tags ?? []).join(", ");
-  buildEnvTable("add-env-table", {});
-  buildVolTable("add-vol-table", []);
+  buildEnvTable("add-env-table", app.env ?? {});
+  buildVolTable("add-vol-table", app.volumes ?? []);
 }
 
 function buildRecCard(app: RecommendedApp): HTMLElement {
@@ -792,8 +861,8 @@ function buildRecCard(app: RecommendedApp): HTMLElement {
           icon: "default.png",
           description: app.description,
           ports: app.ports ?? [],
-          env: {},
-          volumes: [],
+          env: app.env ?? {},
+          volumes: app.volumes ?? [],
           openUrl: app.openUrl,
           group: app.category,
           tags: app.tags ?? [],

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>The Loading Dock(r)</title>
     <link rel="stylesheet" href="https://fonts.bunny.net/css?family=cal-sans:600" />
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/iconoir-icons/iconoir@main/css/iconoir.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/iconoir-icons/iconoir@main/css/iconoir-solid.min.css" />
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
@@ -16,10 +16,10 @@
           The Loading Dock(r)
         </span>
         <div class="actions">
-          <button id="btn-check-update" class="btn-icon" title="Check for updates"><i class="iconoir-refresh-circular"></i></button>
-          <button id="btn-export-registry" class="btn-icon" title="Export registry"><i class="iconoir-upload"></i></button>
-          <button id="btn-import-registry" class="btn-icon" title="Import registry"><i class="iconoir-download"></i></button>
-          <button id="btn-add" class="btn-icon" title="Add app"><i class="iconoir-plus-circle"></i></button>
+          <button id="btn-check-update" class="btn-icon" title="Check for updates" aria-label="Check for updates"><svg width="20" height="20" viewBox="0 0 24 24" stroke-width="1.5" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M11 21H4C2.89543 21 2 20.1046 2 19V5C2 3.89543 2.89543 3 4 3H20C21.1046 3 22 3.89543 22 5V12" stroke="white" stroke-width="1.5" stroke-linecap="round"/><path d="M2 7L22 7" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 5.01L5.01 4.99889" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 5.01L8.01 4.99889" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M11 5.01L11.01 4.99889" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M21.6665 16.6667C21.0477 15.097 19.6346 14 17.9903 14C16.2319 14 14.7378 15.2545 14.1969 17" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M19.9952 16.7723H21.4002C21.7316 16.7723 22.0002 16.5036 22.0002 16.1723V14.55" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M14.3337 19.3333C14.9525 20.903 16.3657 22 18.01 22C19.7684 22 21.2624 20.7455 21.8033 19" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M16.005 19.2277H14.6001C14.2687 19.2277 14.0001 19.4964 14.0001 19.8277V21.45" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <button id="btn-import-registry" class="btn-icon" title="Pull registry" aria-label="Pull registry"><svg width="20" height="20" viewBox="0 0 24 24" stroke-width="1.5" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M21 22V2" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M15 16H5C3.89543 16 3 15.1046 3 14L3 10C3 8.89543 3.89543 8 5 8H15C16.1046 8 17 8.89543 17 10V14C17 15.1046 16.1046 16 15 16Z" stroke="white" stroke-width="1.5"/></svg></button>
+          <button id="btn-export-registry" class="btn-icon" title="Push registry" aria-label="Push registry"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke-width="1.5"><path d="M3 22L3 2" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M19 16H9C7.89543 16 7 15.1046 7 14V10C7 8.89543 7.89543 8 9 8H19C20.1046 8 21 8.89543 21 10V14C21 15.1046 20.1046 16 19 16Z" fill="white" stroke="white" stroke-width="1.5"/></svg></button>
+          <button id="btn-add" class="btn-icon" title="Add app" aria-label="Add new Docker app"><svg width="20" height="20" stroke-width="1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 22V13M12 13L15.5 16.5M12 13L8.5 16.5" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 17.6073C21.4937 17.0221 23 15.6889 23 13C23 9 19.6667 8 18 8C18 6 18 2 12 2C6 2 6 6 6 8C4.33333 8 1 9 1 13C1 15.6889 2.50628 17.0221 4 17.6073" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         </div>
       </header>
 
@@ -36,8 +36,8 @@
           <span id="update-progress-label">0%</span>
         </div>
         <div class="update-banner__actions">
-          <button id="btn-update-install" class="btn btn--primary btn--sm">Install</button>
-          <button id="btn-update-later" class="btn btn--ghost btn--sm">Later</button>
+          <button id="btn-update-install" class="btn btn--primary btn--sm" aria-label="Install update">Install</button>
+          <button id="btn-update-later" class="btn btn--ghost btn--sm" aria-label="Dismiss update notification">Later</button>
         </div>
       </div>
 
@@ -55,7 +55,7 @@
           placeholder="Search installed apps…"
           autocomplete="off"
         />
-<button id="btn-hub" class="btn-hub-toolbar" title="Browse Docker Hub">
+<button id="btn-hub" class="btn-hub-toolbar" title="Browse Docker Hub" aria-label="Browse Docker Hub">
           <img src="https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons@main/png/docker.png" alt="" class="btn-hub-toolbar__img" />
           Docker Hub
         </button>
@@ -78,8 +78,8 @@
       <div id="modal-add" class="modal hidden">
         <div class="modal-box">
           <div class="modal-tabs">
-            <button class="modal-tab modal-tab--active" data-tab="app">Docker App</button>
-            <button class="modal-tab" data-tab="compose">Docker Compose</button>
+            <button class="modal-tab modal-tab--active" data-tab="app" aria-label="Switch to Docker App tab">Docker App</button>
+            <button class="modal-tab" data-tab="compose" aria-label="Switch to Docker Compose tab">Docker Compose</button>
           </div>
 
           <!-- Tab: Docker App -->
@@ -108,14 +108,14 @@
             <div class="field-section">
               <div class="field-section__header">
                 <span>Environment Variables</span>
-                <button class="btn btn--ghost btn--xs" id="add-env-add-row">+ Add</button>
+                <button class="btn btn--ghost btn--xs" id="add-env-add-row" aria-label="Add environment variable">+ Add</button>
               </div>
               <div id="add-env-table" class="kv-table"></div>
             </div>
             <div class="field-section">
               <div class="field-section__header">
                 <span>Volumes</span>
-                <button class="btn btn--ghost btn--xs" id="add-vol-add-row">+ Add</button>
+                <button class="btn btn--ghost btn--xs" id="add-vol-add-row" aria-label="Add volume mount">+ Add</button>
               </div>
               <div id="add-vol-table" class="vol-table"></div>
             </div>
@@ -130,8 +130,8 @@
           </div>
 
           <div class="modal-actions">
-            <button id="btn-add-cancel" class="btn btn--ghost">Cancel</button>
-            <button id="btn-add-confirm" class="btn btn--primary">Add</button>
+            <button id="btn-add-cancel" class="btn btn--ghost" aria-label="Cancel adding app">Cancel</button>
+            <button id="btn-add-confirm" class="btn btn--primary" aria-label="Confirm add app">Add</button>
           </div>
         </div>
       </div>
@@ -163,7 +163,7 @@
           <div class="field-section">
             <div class="field-section__header">
               <span>Environment Variables</span>
-              <button class="btn btn--ghost btn--xs" id="edit-env-add-row">+ Add</button>
+              <button class="btn btn--ghost btn--xs" id="edit-env-add-row" aria-label="Add environment variable">+ Add</button>
             </div>
             <div id="edit-env-table" class="kv-table"></div>
           </div>
@@ -171,15 +171,15 @@
           <div class="field-section">
             <div class="field-section__header">
               <span>Volumes</span>
-              <button class="btn btn--ghost btn--xs" id="edit-vol-add-row">+ Add</button>
+              <button class="btn btn--ghost btn--xs" id="edit-vol-add-row" aria-label="Add volume mount">+ Add</button>
             </div>
             <div id="edit-vol-table" class="vol-table"></div>
           </div>
 
           <div class="modal-actions">
-            <button id="btn-edit-delete" class="btn btn--danger">Delete</button>
-            <button id="btn-edit-cancel" class="btn btn--ghost">Cancel</button>
-            <button id="btn-edit-confirm" class="btn btn--primary">Save</button>
+            <button id="btn-edit-delete" class="btn btn--danger" aria-label="Delete this app">Delete</button>
+            <button id="btn-edit-cancel" class="btn btn--ghost" aria-label="Cancel editing app">Cancel</button>
+            <button id="btn-edit-confirm" class="btn btn--primary" aria-label="Save app changes">Save</button>
           </div>
         </div>
       </div>
@@ -190,9 +190,9 @@
           <h2>Docker Hub</h2>
           <div class="hub-toolbar">
             <input id="hub-search" type="text" placeholder="Search images (nginx, postgres, redis...)" />
-            <button id="btn-hub-search" class="btn btn--primary">Search</button>
-            <button id="btn-hub-popular" class="btn btn--ghost">Popular</button>
-            <button id="btn-hub-close" class="btn btn--ghost">Close</button>
+            <button id="btn-hub-search" class="btn btn--primary" aria-label="Search Docker Hub">Search</button>
+            <button id="btn-hub-popular" class="btn btn--ghost" aria-label="Show popular Docker images">Popular</button>
+            <button id="btn-hub-close" class="btn btn--ghost" aria-label="Close Docker Hub browser">Close</button>
           </div>
           <div id="hub-status" class="hub-status">Browse popular images</div>
           <div id="hub-grid" class="hub-grid"></div>
@@ -209,11 +209,7 @@
           <input id="toggle-auto-restart" type="checkbox" checked />
           Auto-restart on unhealthy
         </label>
-        <label class="settings-bar__item" title="Automatically check for updates on launch">
-          <input id="toggle-auto-check-updates" type="checkbox" checked />
-          Check for updates
-        </label>
-        <label class="settings-bar__item" title="Release channel for auto-updates">
+<label class="settings-bar__item" title="Release channel for auto-updates">
           Channel
           <select id="release-channel" class="status-filter status-filter--inline">
             <option value="stable">stable</option>
