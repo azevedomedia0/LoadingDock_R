@@ -70,6 +70,22 @@ let statusFilter = "all";
 let groupFilter = "all";
 let searchDebounce: ReturnType<typeof setTimeout> | null = null;
 
+// Apps waiting to have their web UI auto-opened once they finish starting
+const pendingWebUiOpen = new Set<string>();
+
+// Current app data directory (set from settings, used for volume path substitution)
+let dataDir = "~/.loading-dock";
+// System identity values — received from main once on startup
+let systemUid = "1000";
+let systemGid = "1000";
+let systemTz = "UTC";
+
+// ── Search mode: "apps" filters the installed grid; "hub" searches DockerHub inline
+type SearchMode = "apps" | "hub";
+let searchMode: SearchMode = "apps";
+// Flag so the dockerhub:results handler knows to route to inline vs. the hub modal
+let hubResultsTarget: "modal" | "inline" = "modal";
+
 let pendingUpdateInfo: {
   version: string;
   releaseNotes: string;
@@ -94,6 +110,8 @@ interface RecommendedApp {
   iconSlug?: string;
   /** Custom icon image URL (overrides iconSlug when set) */
   iconUrl?: string;
+  /** When true the icon image fills the entire square (no padding) */
+  iconFill?: boolean;
   description: string;
   ports?: string[];
   openUrl?: string;
@@ -108,25 +126,33 @@ const ICON_CDN =
 
 const RECOMMENDED_APPS: RecommendedApp[] = [
   // Self-hosted Essentials
-  { category: "Self-hosted Essentials", name: "Nextcloud", image: "nextcloud:latest", icon: "☁️", iconSlug: "nextcloud", description: "File hosting, calendar, contacts, and full collaboration suite.", ports: ["8080:80"], openUrl: "http://localhost:8080", restartPolicy: "unless-stopped",
+  // Admin credentials pre-set so the UI is accessible immediately on first launch.
+  { category: "Self-hosted Essentials", name: "Nextcloud", image: "nextcloud:latest", icon: "☁️", iconSlug: "nextcloud", description: "File hosting, calendar, contacts, and full collaboration suite. Default login: admin / changeme.", ports: ["8080:80"], openUrl: "http://localhost:8080", restartPolicy: "unless-stopped",
+    env: { NEXTCLOUD_ADMIN_USER: "admin", NEXTCLOUD_ADMIN_PASSWORD: "changeme" },
     volumes: ["~/.loading-dock/nextcloud:/var/www/html"] },
 
-  { category: "Self-hosted Essentials", name: "WordPress", image: "wordpress:latest", icon: "📝", iconSlug: "wordpress", description: "The world's most popular CMS for building websites and blogs.", ports: ["8082:80"], openUrl: "http://localhost:8082", restartPolicy: "unless-stopped",
-    env: { WORDPRESS_DB_HOST: "db", WORDPRESS_DB_USER: "wordpress", WORDPRESS_DB_PASSWORD: "changeme", WORDPRESS_DB_NAME: "wordpress" },
+  // WordPress: requires a MySQL/MariaDB database — add your DB connection details before launching.
+  { category: "Self-hosted Essentials", name: "WordPress", image: "wordpress:latest", icon: "📝", iconSlug: "wordpress", description: "The world's most popular CMS. Requires a MySQL or MariaDB database — set the DB env vars to connect.", ports: ["8082:80"], openUrl: "http://localhost:8082", restartPolicy: "unless-stopped", tags: ["cms", "blog", "website"],
+    env: { WORDPRESS_DB_HOST: "", WORDPRESS_DB_USER: "wordpress", WORDPRESS_DB_PASSWORD: "", WORDPRESS_DB_NAME: "wordpress" },
     volumes: ["~/.loading-dock/wordpress:/var/www/html"] },
 
-  { category: "Self-hosted Essentials", name: "Syncthing", image: "syncthing/syncthing:latest", icon: "🔄", iconSlug: "syncthing", description: "Continuous file synchronization across all your devices.", ports: ["8384:8384", "22000:22000"], openUrl: "http://localhost:8384", restartPolicy: "unless-stopped",
-    volumes: ["~/.loading-dock/syncthing/config:/var/syncthing/config", "~/Sync:/var/syncthing/data"] },
-
-  { category: "Self-hosted Essentials", name: "Coolify", image: "coollabsio/coolify:latest", icon: "🚀", iconSlug: "coolify", description: "Self-hosted PaaS — deploy apps, databases, and services with ease.", ports: ["8000:8000"], openUrl: "http://localhost:8000", restartPolicy: "unless-stopped",
-    volumes: ["~/.loading-dock/coolify/data:/data", "/var/run/docker.sock:/var/run/docker.sock"] },
-
-  { category: "Self-hosted Essentials", name: "Puter", image: "ghcr.io/heyputer/puter:latest", icon: "🖥️", iconSlug: "puter", description: "Self-hosted cloud desktop — files, apps, and AI in your browser.", ports: ["4100:4100"], openUrl: "http://localhost:4100", restartPolicy: "unless-stopped", tags: ["cloud", "desktop", "storage"],
+{ category: "Self-hosted Essentials", name: "Puter", image: "ghcr.io/heyputer/puter:latest", icon: "🖥️", iconSlug: "puter", description: "Self-hosted cloud desktop — files, apps, and AI in your browser.", ports: ["4100:4100"], openUrl: "http://localhost:4100", restartPolicy: "unless-stopped", tags: ["cloud", "desktop", "storage"],
     volumes: ["~/.loading-dock/puter/config:/root/.config/puter"] },
 
-  { category: "Self-hosted Essentials", name: "Tailscale", image: "tailscale/tailscale:latest", icon: "🔐", iconSlug: "tailscale", description: "Mesh VPN for secure private networking across all your devices. Complete auth via container logs after launch.", ports: [], restartPolicy: "unless-stopped", tags: ["vpn", "mesh", "tailscale", "network"],
-    env: { TS_AUTHKEY: "" },
-    volumes: ["~/.loading-dock/tailscale/state:/var/lib/tailscale", "/dev/net/tun:/dev/net/tun"] },
+  // Tailscale: userspace mode avoids the /dev/net/tun bind-mount and NET_ADMIN cap requirement
+  // so it starts cleanly inside Docker Desktop on macOS. Paste your auth key to connect.
+  { category: "Self-hosted Essentials", name: "Tailscale", image: "tailscale/tailscale:latest", icon: "🔐", iconSlug: "tailscale", description: "Mesh VPN for secure private networking. Paste your auth key into TS_AUTHKEY, then restart to connect.", ports: [], restartPolicy: "unless-stopped", tags: ["vpn", "mesh", "tailscale", "network"],
+    env: { TS_AUTHKEY: "", TS_USERSPACE: "1", TS_STATE_DIR: "/var/lib/tailscale" },
+    volumes: ["~/.loading-dock/tailscale/state:/var/lib/tailscale"] },
+
+  // Photo Libraries
+  { category: "Photo Libraries", name: "Immich", image: "ghcr.io/immich-app/immich-server:release", icon: "📸", iconSlug: "immich", description: "Self-hosted photo and video backup with AI-powered search and face recognition. Requires a PostgreSQL database and Redis — start those first or use Compose.", ports: ["2283:3001"], openUrl: "http://localhost:2283", restartPolicy: "unless-stopped", tags: ["photos", "backup", "ai"],
+    env: { DB_HOSTNAME: "host.docker.internal", DB_USERNAME: "postgres", DB_PASSWORD: "postgres", DB_DATABASE_NAME: "immich", REDIS_HOSTNAME: "host.docker.internal" },
+    volumes: ["~/.loading-dock/immich/upload:/usr/src/app/upload", "~/Pictures:/usr/src/app/upload/library"] },
+
+  { category: "Photo Libraries", name: "PhotoPrism", image: "photoprism/photoprism:latest", icon: "🖼️", iconSlug: "photoprism", description: "AI-powered photo management with face recognition and geo-tagging. Default login: admin / changeme.", ports: ["2342:2342"], openUrl: "http://localhost:2342", restartPolicy: "unless-stopped",
+    env: { PHOTOPRISM_AUTH_MODE: "password", PHOTOPRISM_ADMIN_USER: "admin", PHOTOPRISM_ADMIN_PASSWORD: "changeme", PHOTOPRISM_HTTP_COMPRESSION: "gzip", PHOTOPRISM_DATABASE_DRIVER: "sqlite" },
+    volumes: ["~/.loading-dock/photoprism/storage:/photoprism/storage", "~/Pictures:/photoprism/originals"] },
 
   // Media Servers
   { category: "Media Servers", name: "Plex", image: "lscr.io/linuxserver/plex:latest", icon: "🎬", iconSlug: "plex", description: "Powerful media server for movies, TV, music, and photos.", ports: ["32400:32400"], openUrl: "http://localhost:32400/web", restartPolicy: "unless-stopped",
@@ -137,31 +163,14 @@ const RECOMMENDED_APPS: RecommendedApp[] = [
     env: { TZ: "UTC" },
     volumes: ["~/.loading-dock/jellyfin/config:/config", "~/.loading-dock/jellyfin/cache:/cache", "~/Movies:/movies", "~/Music:/music", "~/TV:/tv"] },
 
+  // Emby uses host port 8097 to avoid collision with Jellyfin on 8096.
+  { category: "Media Servers", name: "Emby", image: "emby/embyserver:latest", icon: "📺", iconSlug: "emby", description: "Personal media server — organise and stream your movies, TV, and music to any device.", ports: ["8097:8096", "8920:8920"], openUrl: "http://localhost:8097/web", restartPolicy: "unless-stopped", tags: ["media", "streaming", "movies", "tv"],
+    env: { UID: "1000", GID: "1000" },
+    volumes: ["~/.loading-dock/emby/config:/config", "~/Movies:/mnt/movies", "~/Music:/mnt/music", "~/TV:/mnt/tv"] },
+
   { category: "Media Servers", name: "Navidrome", image: "deluan/navidrome:latest", icon: "🎵", iconSlug: "navidrome", description: "Modern self-hosted music server and streamer, compatible with Subsonic clients.", ports: ["4533:4533"], openUrl: "http://localhost:4533", restartPolicy: "unless-stopped", tags: ["music", "streaming", "audio"],
     env: { ND_MUSICFOLDER: "/music", ND_DATAFOLDER: "/data", ND_LOGLEVEL: "info" },
     volumes: ["~/.loading-dock/navidrome/data:/data", "~/Music:/music:ro"] },
-
-  // Smart Home & Network
-  { category: "Smart Home & Network", name: "Home Assistant", image: "ghcr.io/home-assistant/home-assistant:latest", icon: "🏠", iconSlug: "home-assistant", description: "Open source home automation platform for smart home control.", ports: ["8123:8123"], openUrl: "http://localhost:8123", restartPolicy: "unless-stopped",
-    env: { TZ: "UTC" },
-    volumes: ["~/.loading-dock/home-assistant/config:/config"] },
-
-  { category: "Smart Home & Network", name: "Pi-hole", image: "pihole/pihole:latest", icon: "🛡️", iconSlug: "pi-hole", description: "Network-wide ad and tracker blocking via DNS sinkhole.", ports: ["8053:80", "53:53"], openUrl: "http://localhost:8053/admin", restartPolicy: "unless-stopped",
-    env: { TZ: "UTC", WEBPASSWORD: "changeme" },
-    volumes: ["~/.loading-dock/pihole/etc-pihole:/etc/pihole", "~/.loading-dock/pihole/etc-dnsmasq.d:/etc/dnsmasq.d"] },
-
-  { category: "Smart Home & Network", name: "Nginx Proxy Manager", image: "jc21/nginx-proxy-manager:latest", icon: "🔀", iconSlug: "nginx-proxy-manager", description: "Reverse proxy with a web UI for hosts, SSL (Let's Encrypt), and access lists. Default login: admin@example.com / changeme.", ports: ["8181:81", "8880:80", "4443:443"], openUrl: "http://localhost:8181", restartPolicy: "unless-stopped", tags: ["proxy", "ssl", "network"],
-    volumes: ["~/.loading-dock/nginx-proxy-manager/data:/data", "~/.loading-dock/nginx-proxy-manager/letsencrypt:/etc/letsencrypt"] },
-
-  { category: "Smart Home & Network", name: "Cloudflare DDNS", image: "favonia/cloudflare-ddns:latest", icon: "📝", iconSlug: "cloudflare", description: "Updates Cloudflare DNS when your public IP changes.", ports: [], restartPolicy: "unless-stopped", tags: ["cloudflare", "ddns", "dns", "network"],
-    env: { CLOUDFLARE_API_TOKEN: "your_token_here", DOMAINS: "example.com", PROXIED: "false" } },
-
-  { category: "Smart Home & Network", name: "Homebridge", image: "homebridge/homebridge:latest", icon: "🏡", iconSlug: "homebridge", description: "Bridge non-HomeKit smart home devices to Apple HomeKit via a lightweight Node.js server.", ports: ["8581:8581"], openUrl: "http://localhost:8581", restartPolicy: "unless-stopped", tags: ["homekit", "smart-home", "apple", "bridge"],
-    env: { TZ: "UTC", HOMEBRIDGE_CONFIG_UI: "1", HOMEBRIDGE_CONFIG_UI_PORT: "8581" },
-    volumes: ["~/.loading-dock/homebridge/config:/homebridge"] },
-
-  { category: "Smart Home & Network", name: "Guacamole", image: "guacamole/guacamole:latest", icon: "🖥️", iconSlug: "guacamole", description: "Clientless remote desktop gateway — access RDP, VNC, and SSH from your browser. Requires a guacd container.", ports: ["8888:8080"], openUrl: "http://localhost:8888/guacamole", restartPolicy: "unless-stopped", tags: ["remote-desktop", "rdp", "vnc", "ssh"],
-    env: { GUACD_HOSTNAME: "localhost", GUACD_PORT: "4822" } },
 
   // AI & Automation
   { category: "AI & Automation", name: "Ollama", image: "ollama/ollama:latest", icon: "🤖", iconSlug: "ollama", description: "Run large language models locally with a simple REST API.", ports: ["11434:11434"], restartPolicy: "unless-stopped",
@@ -171,10 +180,12 @@ const RECOMMENDED_APPS: RecommendedApp[] = [
     env: { N8N_BASIC_AUTH_ACTIVE: "false", N8N_PORT: "5678" },
     volumes: ["~/.loading-dock/n8n:/home/node/.n8n"] },
 
-  { category: "AI & Automation", name: "OpenClaw", image: "openclaw/openclaw:latest", icon: "🦀", iconSlug: "openclaw", description: "Open-source orchestration and automation platform.", ports: ["9000:9000"], openUrl: "http://localhost:9000", restartPolicy: "unless-stopped",
-    volumes: ["~/.loading-dock/openclaw/data:/app/data"] },
+  // Open WebUI: chat UI for local LLMs — connects to Ollama automatically via host.docker.internal.
+  { category: "AI & Automation", name: "Open WebUI", image: "ghcr.io/open-webui/open-webui:main", icon: "💬", iconSlug: "open-webui", description: "Feature-rich chat UI for Ollama and OpenAI-compatible APIs. Auto-connects to a local Ollama instance.", ports: ["3000:8080"], openUrl: "http://localhost:3000", restartPolicy: "unless-stopped", tags: ["ai", "llm", "chat", "ollama"],
+    env: { OLLAMA_BASE_URL: "http://host.docker.internal:11434", WEBUI_AUTH: "false" },
+    volumes: ["~/.loading-dock/open-webui:/app/backend/data"] },
 
-  { category: "AI & Automation", name: "Hermes Chat", image: "ghcr.io/hermeschat/hermes:latest", icon: "💬", iconUrl: "https://agentlocker.ai/static/uploads/ac3292ea-f056-4667-a3a8-f3c5e1467242_hermes.webp", description: "Self-hosted team chat and messaging platform.", ports: ["3000:3000"], openUrl: "http://localhost:3000", restartPolicy: "unless-stopped",
+  { category: "AI & Automation", name: "Hermes Chat", image: "ghcr.io/hermeschat/hermes:latest", icon: "💬", iconSlug: "hermes-icon", description: "Self-hosted team chat and messaging platform.", ports: ["3000:3000"], openUrl: "http://localhost:3000", restartPolicy: "unless-stopped", tags: ["chat", "messaging", "team"],
     volumes: ["~/.loading-dock/hermes/data:/app/data"] },
 
   // Media Management
@@ -194,18 +205,40 @@ const RECOMMENDED_APPS: RecommendedApp[] = [
     env: { PUID: "1000", PGID: "1000", TZ: "UTC" },
     volumes: ["~/.loading-dock/lidarr/config:/config", "~/Music:/music", "~/Downloads:/downloads"] },
 
-  { category: "Media Management", name: "qBittorrent", image: "lscr.io/linuxserver/qbittorrent:latest", icon: "⬇️", iconSlug: "qbittorrent", description: "Feature-rich torrent client with a web-based management UI.", ports: ["8090:8080", "6881:6881"], openUrl: "http://localhost:8090", restartPolicy: "unless-stopped",
-    env: { PUID: "1000", PGID: "1000", TZ: "UTC", WEBUI_PORT: "8090" },
+  // qBittorrent: WEBUI_PORT must match the container-side of the port mapping (8080), not the host port.
+  { category: "Media Management", name: "qBittorrent", image: "lscr.io/linuxserver/qbittorrent:latest", icon: "⬇️", iconSlug: "qbittorrent", description: "Feature-rich torrent client with a web-based management UI. Default login: admin / adminadmin.", ports: ["8090:8080", "6881:6881"], openUrl: "http://localhost:8090", restartPolicy: "unless-stopped",
+    env: { PUID: "1000", PGID: "1000", TZ: "UTC", WEBUI_PORT: "8080" },
     volumes: ["~/.loading-dock/qbittorrent/config:/config", "~/Downloads:/downloads"] },
 
-  // Photo Libraries
-  { category: "Photo Libraries", name: "Immich", image: "ghcr.io/immich-app/immich-server:latest", icon: "📸", iconSlug: "immich", description: "Self-hosted photo and video backup with AI-powered search and faces.", ports: ["2283:3001"], openUrl: "http://localhost:2283", restartPolicy: "unless-stopped",
-    env: { DB_PASSWORD: "postgres", DB_USERNAME: "postgres", DB_DATABASE_NAME: "immich", REDIS_HOSTNAME: "localhost" },
-    volumes: ["~/.loading-dock/immich/upload:/usr/src/app/upload", "~/Pictures:/usr/src/app/upload/library"] },
+  // Calibre-Web: DOCKER_MODS removed — the Calibre mod triggers a multi-minute install on first boot.
+  { category: "Media Management", name: "Calibre-Web", image: "lscr.io/linuxserver/calibre-web:latest", icon: "📚", iconSlug: "calibre-web", description: "Web-based eBook manager and reader. Point it at an existing Calibre library folder on first launch.", ports: ["8083:8083"], openUrl: "http://localhost:8083", restartPolicy: "unless-stopped", tags: ["ebooks", "books", "calibre", "reading"],
+    env: { PUID: "1000", PGID: "1000", TZ: "UTC" },
+    volumes: ["~/.loading-dock/calibre-web/config:/config", "~/Books:/books"] },
 
-  { category: "Photo Libraries", name: "PhotoPrism", image: "photoprism/photoprism:latest", icon: "🖼️", iconSlug: "photoprism", description: "AI-powered photo management with face recognition and geo-tagging.", ports: ["2342:2342"], openUrl: "http://localhost:2342", restartPolicy: "unless-stopped",
-    env: { PHOTOPRISM_AUTH_MODE: "password", PHOTOPRISM_ADMIN_USER: "admin", PHOTOPRISM_ADMIN_PASSWORD: "changeme", PHOTOPRISM_HTTP_COMPRESSION: "gzip" },
-    volumes: ["~/.loading-dock/photoprism/storage:/photoprism/storage", "~/Pictures:/photoprism/originals"] },
+  // Smart Home & Network
+  { category: "Smart Home & Network", name: "Home Assistant", image: "ghcr.io/home-assistant/home-assistant:latest", icon: "🏠", iconSlug: "home-assistant", description: "Open source home automation platform for smart home control.", ports: ["8123:8123"], openUrl: "http://localhost:8123", restartPolicy: "unless-stopped",
+    env: { TZ: "UTC" },
+    volumes: ["~/.loading-dock/home-assistant/config:/config"] },
+
+  // Pi-hole: port 53 is reserved by macOS mDNSResponder, so DNS is exposed on host port 5353.
+  { category: "Smart Home & Network", name: "Pi-hole", image: "pihole/pihole:latest", icon: "🛡️", iconSlug: "pi-hole", description: "Network-wide ad and tracker blocking via DNS sinkhole. Admin password: changeme. DNS available on port 5353.", ports: ["8053:80", "5353:53/tcp", "5353:53/udp"], openUrl: "http://localhost:8053/admin", restartPolicy: "unless-stopped",
+    env: { TZ: "UTC", WEBPASSWORD: "changeme" },
+    volumes: ["~/.loading-dock/pihole/etc-pihole:/etc/pihole", "~/.loading-dock/pihole/etc-dnsmasq.d:/etc/dnsmasq.d"] },
+
+  { category: "Smart Home & Network", name: "Nginx Proxy Manager", image: "jc21/nginx-proxy-manager:latest", icon: "🔀", iconSlug: "nginx-proxy-manager", description: "Reverse proxy with a web UI for hosts, SSL (Let's Encrypt), and access lists. Default login: admin@example.com / changeme.", ports: ["8181:81", "8880:80", "4443:443"], openUrl: "http://localhost:8181", restartPolicy: "unless-stopped", tags: ["proxy", "ssl", "network"],
+    volumes: ["~/.loading-dock/nginx-proxy-manager/data:/data", "~/.loading-dock/nginx-proxy-manager/letsencrypt:/etc/letsencrypt"] },
+
+  // Cloudflare DDNS: correct env var is CF_API_TOKEN (not CLOUDFLARE_API_TOKEN).
+  { category: "Smart Home & Network", name: "Cloudflare DDNS", image: "favonia/cloudflare-ddns:latest", icon: "☁️", iconSlug: "cloudflare", description: "Keeps your Cloudflare DNS records in sync when your public IP changes. Add your API token and domain to activate.", ports: [], restartPolicy: "unless-stopped", tags: ["cloudflare", "ddns", "dns", "network"],
+    env: { CF_API_TOKEN: "", DOMAINS: "example.com", PROXIED: "false", UPDATE_CRON: "@every 5m" } },
+
+  { category: "Smart Home & Network", name: "Homebridge", image: "homebridge/homebridge:latest", icon: "🏡", iconSlug: "homebridge", description: "Bridge non-HomeKit smart home devices to Apple HomeKit via a lightweight Node.js server.", ports: ["8581:8581"], openUrl: "http://localhost:8581", restartPolicy: "unless-stopped", tags: ["homekit", "smart-home", "apple", "bridge"],
+    env: { TZ: "UTC", HOMEBRIDGE_CONFIG_UI: "1", HOMEBRIDGE_CONFIG_UI_PORT: "8581" },
+    volumes: ["~/.loading-dock/homebridge/config:/homebridge"] },
+
+  { category: "Smart Home & Network", name: "Syncthing", image: "syncthing/syncthing:latest", icon: "🔄", iconSlug: "syncthing", description: "Continuous file synchronisation — securely sync files between devices without a central server.", ports: ["8384:8384", "22000:22000"], openUrl: "http://localhost:8384", restartPolicy: "unless-stopped", tags: ["sync", "backup", "files", "p2p"],
+    env: { PUID: "1000", PGID: "1000" },
+    volumes: ["~/.loading-dock/syncthing/config:/var/syncthing/config", "~/Sync:/var/syncthing/data"] },
 ];
 
 function send(msg: IpcMessage) {
@@ -226,6 +259,26 @@ function showError(message: string) {
   showBanner("error-banner", message);
 }
 let dockerStartAttempted = false;
+function showOnboardingPanel() {
+  const panel = document.getElementById("onboarding-panel");
+  if (!panel) return;
+
+  const pathLabel = document.getElementById("onboarding-datadir-path");
+  if (pathLabel) pathLabel.textContent = dataDir;
+
+  panel.classList.remove("hidden");
+
+  document.getElementById("btn-onboarding-pick-dir")?.addEventListener("click", () => {
+    send({ type: "dialog:pick-folder", callbackId: "onboarding-datadir" });
+  });
+
+  document.getElementById("btn-onboarding-dismiss")?.addEventListener("click", () => {
+    const noStartup = (document.getElementById("onboarding-no-startup") as HTMLInputElement)?.checked ?? false;
+    send({ type: "onboarding:dismiss", noStartup });
+    panel.classList.add("hidden");
+  });
+}
+
 function toggleDockerWarning(show: boolean) {
   const banner = document.getElementById("docker-warning");
   const label = document.getElementById("docker-warning-text");
@@ -244,40 +297,66 @@ function toggleDockerWarning(show: boolean) {
   }
 }
 
-// ── Update banner ───────────────────────────────────────────────
+// ── Update chip (topbar one-click flow) ─────────────────────────
 
-function showUpdateBanner(version: string, notes: string) {
-  const banner = document.getElementById("update-banner")!;
-  const title = document.getElementById("update-banner-title")!;
-  const notesEl = document.getElementById("update-banner-notes")!;
-  title.textContent = `Update available: v${version}`;
-  notesEl.textContent = notes.split("\n")[0]?.slice(0, 120) ?? "";
-  banner.classList.remove("hidden");
-  (banner.querySelector(".update-banner__progress") as HTMLElement).classList.add("hidden");
+type UpdateChipState = "idle" | "checking" | "available" | "downloading" | "ready";
+
+function setUpdateChip(state: UpdateChipState, label = "", percent = 0) {
+  const chip = document.getElementById("update-chip")!;
+  const lbl = document.getElementById("update-chip-label")!;
+  const bar = document.getElementById("update-chip-bar")!;
+  const fill = document.getElementById("update-chip-fill") as HTMLElement;
+
+  chip.className = "update-chip";
+  bar.classList.add("hidden");
+
+  if (state === "idle") { chip.classList.add("hidden"); return; }
+  chip.classList.remove("hidden");
+
+  if (state === "checking") {
+    lbl.textContent = "Checking…";
+  } else if (state === "available") {
+    chip.classList.add("update-chip--available");
+    lbl.textContent = label || "Update available — click to install";
+  } else if (state === "downloading") {
+    chip.classList.add("update-chip--downloading");
+    lbl.textContent = `Downloading… ${percent}%`;
+    bar.classList.remove("hidden");
+    fill.style.width = `${percent}%`;
+  } else if (state === "ready") {
+    chip.classList.add("update-chip--ready");
+    lbl.textContent = "✓ Restart to apply update";
+  }
 }
 
-function showUpdateProgress(percent: number) {
-  const prog = document.querySelector(".update-banner__progress") as HTMLElement;
-  const fill = document.getElementById("update-progress-fill") as HTMLElement;
-  const label = document.getElementById("update-progress-label")!;
-  prog.classList.remove("hidden");
-  fill.style.width = `${percent}%`;
-  label.textContent = `${percent}%`;
-  // Disable Install button while downloading
-  (document.getElementById("btn-update-install") as HTMLButtonElement).disabled = true;
-}
-
-document.getElementById("btn-update-install")!.addEventListener("click", () => {
+// Click on the chip while in "available" state starts the download
+document.getElementById("update-chip")!.addEventListener("click", () => {
   if (!pendingUpdateInfo?.downloadUrl) return;
+  if (!document.getElementById("update-chip")!.classList.contains("update-chip--available")) return;
   send({
     type: "update:download",
     downloadUrl: pendingUpdateInfo.downloadUrl,
     version: pendingUpdateInfo.version,
     channel: pendingUpdateInfo.channel,
   });
+  setUpdateChip("downloading", "", 0);
 });
-document.getElementById("btn-update-later")!.addEventListener("click", () => {
-  document.getElementById("update-banner")!.classList.add("hidden");
+
+// ── Theme ────────────────────────────────────────────────────────
+
+function applyTheme(t: "dark" | "light") {
+  document.documentElement.setAttribute("data-theme", t);
+  const sun = document.getElementById("icon-sun")!;
+  const moon = document.getElementById("icon-moon")!;
+  sun.classList.toggle("hidden", t === "dark");
+  moon.classList.toggle("hidden", t === "light");
+}
+
+document.getElementById("btn-theme-toggle")!.addEventListener("click", () => {
+  const current = document.documentElement.getAttribute("data-theme") as "dark" | "light";
+  const next: "dark" | "light" = current === "dark" ? "light" : "dark";
+  applyTheme(next);
+  send({ type: "settings:theme", theme: next });
 });
 
 // ── Grid rendering ──────────────────────────────────────────────
@@ -291,15 +370,22 @@ function refreshGroupFilterOptions() {
 }
 
 function wireCardButtons(card: HTMLElement, app: DockerApp) {
-  // Icon click: launch or stop (depends on current data-action)
+  // Icon click: open web UI (running) or launch (stopped)
   const iconEl = card.querySelector<HTMLElement>(".app-card__icon--clickable");
   if (iconEl) {
     iconEl.addEventListener("click", (e) => {
       e.stopPropagation();
       if (iconEl.dataset.busy) return;
-      if (iconEl.dataset.action === "stop") {
-        send({ type: "app:stop", id: app.id });
+      if (iconEl.dataset.action === "open") {
+        // App is running — open dedicated web UI window or app detail window
+        if (app.openUrl) {
+          send({ type: "app:open-webui", id: app.id });
+        } else {
+          send({ type: "app:open-window", app });
+        }
       } else {
+        // App is stopped — launch it; auto-open web UI once it's up
+        if (app.openUrl) pendingWebUiOpen.add(app.id);
         send({ type: "app:launch", id: app.id });
       }
     });
@@ -590,6 +676,9 @@ function openEditModal(app: DockerApp) {
     app.healthcheck?.retries?.toString() ?? "";
   buildEnvTable("edit-env-table", app.env, app.keychainEnvKeys);
   buildVolTable("edit-vol-table", app.volumes);
+  // Show the Stop button only when the app is currently running
+  const stopBtn = document.getElementById("btn-edit-stop") as HTMLButtonElement;
+  stopBtn.classList.toggle("hidden", app.status !== "running");
   document.getElementById("modal-edit")!.classList.remove("hidden");
 }
 
@@ -649,7 +738,12 @@ ev.on("ipc-message", (msg: IpcMessage) => {
       break;
     case "onboarding:state":
       firstRun = msg.firstRun;
+      dataDir = msg.dataDir;
+      systemUid = msg.systemUid;
+      systemGid = msg.systemGid;
+      systemTz = msg.systemTz;
       renderGrid();
+      if (msg.showOnboarding) showOnboardingPanel();
       break;
     case "app:status": {
       const app = apps.find((a) => a.id === msg.id);
@@ -657,6 +751,15 @@ ev.on("ipc-message", (msg: IpcMessage) => {
         app.status = msg.status;
         app.containerId = msg.containerId;
         updateCard(app);
+        // Auto-open web UI when container finishes starting (icon-click launch)
+        if (msg.status === "running" && pendingWebUiOpen.has(msg.id)) {
+          pendingWebUiOpen.delete(msg.id);
+          if (app.openUrl) send({ type: "app:open-webui", id: app.id });
+        }
+        // Clean up pending set if the app errored or was stopped before starting
+        if (msg.status === "error" || msg.status === "stopped") {
+          pendingWebUiOpen.delete(msg.id);
+        }
       }
       break;
     }
@@ -686,7 +789,12 @@ ev.on("ipc-message", (msg: IpcMessage) => {
     case "dockerhub:results":
       hubImages = msg.images;
       hubCache.set(msg.query ?? "", msg.images);
-      renderHubResults(msg.query);
+      if (hubResultsTarget === "inline") {
+        renderHubInlineResults(msg.images, msg.query);
+        hubResultsTarget = "modal"; // reset for next use
+      } else {
+        renderHubResults(msg.query);
+      }
       break;
     case "registry:exported": {
       const blob = new Blob([msg.json], { type: "application/json" });
@@ -704,16 +812,17 @@ ev.on("ipc-message", (msg: IpcMessage) => {
         releaseNotes: msg.releaseNotes,
         channel: msg.channel,
       };
-      showUpdateBanner(msg.version, msg.releaseNotes);
+      setUpdateChip("available", `v${msg.version} available — click to install`);
       break;
     case "update:not-available":
+      setUpdateChip("idle");
       showBanner("welcome-banner", "You are on the latest version.", 3000);
       break;
     case "update:download:progress":
-      showUpdateProgress(msg.percent);
+      setUpdateChip("downloading", "", msg.percent);
       break;
     case "update:download:done":
-      showBanner("welcome-banner", "Update ready. Restarting to apply…", 0);
+      setUpdateChip("ready");
       send({ type: "update:apply", localPath: msg.localPath });
       break;
     case "keychain:set:done":
@@ -723,12 +832,18 @@ ev.on("ipc-message", (msg: IpcMessage) => {
       showError(msg.message);
       break;
     case "settings:state": {
-      (document.getElementById("toggle-open-at-login") as HTMLInputElement).checked =
-        msg.openAtLogin;
-      (document.getElementById("toggle-auto-restart") as HTMLInputElement).checked =
-        msg.autoRestartOnUnhealthy;
-      (document.getElementById("toggle-auto-check-updates") as HTMLInputElement).checked =
-        msg.autoCheckUpdates;
+      applyTheme(msg.theme ?? "dark");
+      (document.getElementById("toggle-open-at-login") as HTMLInputElement).checked = msg.openAtLogin;
+      (document.getElementById("toggle-auto-restart") as HTMLInputElement).checked = msg.autoRestartOnUnhealthy;
+      (document.getElementById("toggle-auto-check-updates") as HTMLInputElement).checked = msg.autoCheckUpdates;
+      (document.getElementById("toggle-mask-secrets") as HTMLInputElement).checked = msg.secretsMaskingEnabled;
+      (document.getElementById("toggle-keychain-secrets") as HTMLInputElement).checked = msg.keychainSecretsEnabled;
+      (document.getElementById("toggle-error-logging") as HTMLInputElement).checked = msg.errorLoggingEnabled;
+      (document.getElementById("toggle-show-onboarding") as HTMLInputElement).checked = msg.showOnboarding;
+      dataDir = msg.dataDir;
+      systemUid = msg.systemUid;
+      systemGid = msg.systemGid;
+      systemTz = msg.systemTz;
       break;
     }
     case "errors:exported": {
@@ -741,6 +856,17 @@ ev.on("ipc-message", (msg: IpcMessage) => {
       URL.revokeObjectURL(href);
       break;
     }
+    case "dialog:folder-result": {
+      if (msg.callbackId === "onboarding-datadir") {
+        dataDir = msg.path;
+        const pathLabel = document.getElementById("onboarding-datadir-path");
+        if (pathLabel) pathLabel.textContent = dataDir;
+        send({ type: "settings:data-dir", path: dataDir });
+      }
+      break;
+    }
+    case "dialog:folder-cancelled":
+      break;
     case "app:health-restart":
       showBanner(
         "welcome-banner",
@@ -751,6 +877,25 @@ ev.on("ipc-message", (msg: IpcMessage) => {
     case "notification:show":
       showBanner("welcome-banner", msg.body, 3000);
       break;
+    case "system:metrics": {
+      const cpuVal = document.getElementById("sys-cpu-val")!;
+      const gpuVal = document.getElementById("sys-gpu-val")!;
+      const cpuPill = document.getElementById("sys-cpu")!;
+      const gpuPill = document.getElementById("sys-gpu")!;
+
+      cpuVal.textContent = `${msg.cpuPercent}%`;
+      cpuPill.classList.toggle("sys-metric--high",   msg.cpuPercent >= 80);
+      cpuPill.classList.toggle("sys-metric--medium", msg.cpuPercent >= 50 && msg.cpuPercent < 80);
+      cpuPill.classList.toggle("sys-metric--low",    msg.cpuPercent <  50);
+
+      if (msg.gpuPercent !== null) {
+        gpuVal.textContent = `${msg.gpuPercent}%`;
+        gpuPill.classList.toggle("sys-metric--high",   msg.gpuPercent >= 80);
+        gpuPill.classList.toggle("sys-metric--medium", msg.gpuPercent >= 50 && msg.gpuPercent < 80);
+        gpuPill.classList.toggle("sys-metric--low",    msg.gpuPercent <  50);
+      }
+      break;
+    }
   }
 });
 
@@ -764,6 +909,76 @@ function renderHubResults(query?: string) {
     : `Popular images (${hubImages.length})`;
   while (grid.firstChild) grid.removeChild(grid.firstChild);
   for (const image of hubImages) grid.appendChild(buildHubCard(image, true));
+}
+
+// ── Inline hub results (search-bar hub mode) ────────────────────
+
+function renderHubInlineResults(images: DockerHubImage[], query?: string) {
+  const statusEl = document.getElementById("hub-inline-status")!;
+  const grid = document.getElementById("hub-inline-grid")!;
+  statusEl.textContent = query?.trim()
+    ? `Docker Hub — "${query}" (${images.length} results)`
+    : `50 most popular Docker Hub images`;
+  while (grid.firstChild) grid.removeChild(grid.firstChild);
+  for (const image of images) {
+    // Use closeModal=false so clicking install just opens the add modal without
+    // closing a hub modal (there is none in inline mode).
+    grid.appendChild(buildHubCard(image, false));
+  }
+}
+
+function setSearchMode(mode: SearchMode) {
+  searchMode = mode;
+
+  const appsBtn = document.getElementById("search-mode-apps") as HTMLButtonElement;
+  const hubBtn = document.getElementById("search-mode-hub") as HTMLButtonElement;
+  const input = document.getElementById("app-search") as HTMLInputElement;
+  const hubSection = document.getElementById("section-hub-inline")!;
+  const installedSection = document.getElementById("section-installed")!;
+  const recommendedSection = document.getElementById("section-recommended")!;
+
+  if (mode === "apps") {
+    appsBtn.classList.add("search-mode-btn--active");
+    appsBtn.setAttribute("aria-pressed", "true");
+    hubBtn.classList.remove("search-mode-btn--active");
+    hubBtn.setAttribute("aria-pressed", "false");
+
+    input.placeholder = "Search installed apps…";
+
+    hubSection.classList.add("hidden");
+    installedSection.classList.remove("hidden");
+    recommendedSection.classList.remove("hidden");
+
+    // Re-run app filter in case query carries over
+    searchTerm = input.value;
+    renderGrid();
+  } else {
+    hubBtn.classList.add("search-mode-btn--active");
+    hubBtn.setAttribute("aria-pressed", "true");
+    appsBtn.classList.remove("search-mode-btn--active");
+    appsBtn.setAttribute("aria-pressed", "false");
+
+    input.placeholder = "Search Docker Hub…";
+
+    hubSection.classList.remove("hidden");
+    installedSection.classList.add("hidden");
+    recommendedSection.classList.add("hidden");
+
+    // Show popular images immediately (or from cache) when no query is typed
+    const query = input.value.trim();
+    const cacheKey = query || "";
+    const cached = hubCache.get(cacheKey);
+    if (cached) {
+      // Render cached results straight into the inline panel
+      renderHubInlineResults(cached, query || undefined);
+    } else {
+      document.getElementById("hub-inline-status")!.textContent = query
+        ? `Searching "${query}"…`
+        : "Loading 50 most popular images…";
+      hubResultsTarget = "inline";
+      send({ type: "dockerhub:browse", query: query || undefined });
+    }
+  }
 }
 
 function fillAddFromRec(app: RecommendedApp) {
@@ -797,7 +1012,7 @@ function buildRecCard(app: RecommendedApp): HTMLElement {
       : null;
   if (iconSrc) {
     const img = document.createElement("img");
-    img.className = "rec-card__logo";
+    img.className = app.iconFill ? "rec-card__logo rec-card__logo--fill" : "rec-card__logo";
     img.src = iconSrc;
     img.alt = app.name;
     img.addEventListener("error", () => {
@@ -861,8 +1076,22 @@ function buildRecCard(app: RecommendedApp): HTMLElement {
           icon: "default.png",
           description: app.description,
           ports: app.ports ?? [],
-          env: app.env ?? {},
-          volumes: app.volumes ?? [],
+          volumes: (app.volumes ?? []).map((v) =>
+            v.replace("~/.loading-dock", dataDir),
+          ),
+          // Pre-populate standard env vars with real system values so containers
+          // start correctly without any manual configuration.
+          env: Object.fromEntries(
+            Object.entries(app.env ?? {}).map(([k, v]) => {
+              let val = v.replace("~/.loading-dock", dataDir);
+              if (k === "PUID") val = systemUid;
+              else if (k === "PGID") val = systemGid;
+              else if (k === "UID") val = systemUid;
+              else if (k === "GID") val = systemGid;
+              else if (k === "TZ" && (v === "UTC" || v === "")) val = systemTz;
+              return [k, val];
+            }),
+          ),
           openUrl: app.openUrl,
           group: app.category,
           tags: app.tags ?? [],
@@ -1035,13 +1264,39 @@ document.getElementById("btn-add-confirm")!.addEventListener("click", () => {
 
 // ── Edit modal ──────────────────────────────────────────────────
 
-document.getElementById("btn-edit-cancel")!.addEventListener("click", () => {
+function closeEditModal() {
+  if (deleteConfirmTimer) { clearTimeout(deleteConfirmTimer); deleteConfirmTimer = null; }
+  btnEditDelete.classList.remove("btn--confirming");
+  btnEditDelete.textContent = "Delete";
   document.getElementById("modal-edit")!.classList.add("hidden");
   editTarget = null;
-});
-document.getElementById("btn-edit-delete")!.addEventListener("click", () => {
+}
+document.getElementById("btn-edit-cancel")!.addEventListener("click", closeEditModal);
+document.getElementById("btn-edit-stop")!.addEventListener("click", () => {
   if (!editTarget) return;
-  if (!window.confirm(`Remove app '${editTarget.name}'?`)) return;
+  send({ type: "app:stop", id: editTarget.id });
+  closeEditModal();
+});
+let deleteConfirmTimer: ReturnType<typeof setTimeout> | null = null;
+const btnEditDelete = document.getElementById("btn-edit-delete") as HTMLButtonElement;
+btnEditDelete.addEventListener("click", () => {
+  if (!editTarget) return;
+
+  if (!btnEditDelete.classList.contains("btn--confirming")) {
+    // First click — enter confirmation state
+    btnEditDelete.classList.add("btn--confirming");
+    btnEditDelete.textContent = "Are You Sure?";
+    deleteConfirmTimer = setTimeout(() => {
+      btnEditDelete.classList.remove("btn--confirming");
+      btnEditDelete.textContent = "Delete";
+    }, 3000);
+    return;
+  }
+
+  // Second click — confirmed, execute delete
+  if (deleteConfirmTimer) clearTimeout(deleteConfirmTimer);
+  btnEditDelete.classList.remove("btn--confirming");
+  btnEditDelete.textContent = "Delete";
   send({ type: "app:remove", id: editTarget.id });
   document.getElementById("modal-edit")!.classList.add("hidden");
   editTarget = null;
@@ -1108,7 +1363,7 @@ document.getElementById("btn-edit-confirm")!.addEventListener("click", () => {
 
 document.getElementById("btn-check-update")?.addEventListener("click", () => {
   send({ type: "update:check" });
-  showBanner("welcome-banner", "Checking for updates…", 3000);
+  setUpdateChip("checking");
 });
 
 // ── Import / export ─────────────────────────────────────────────
@@ -1126,23 +1381,39 @@ document.getElementById("registry-import-file")!.addEventListener("change", asyn
   send({ type: "registry:import", json });
 });
 
+// Settings modal open / close
+document.getElementById("btn-settings")!.addEventListener("click", () => {
+  document.getElementById("modal-settings")!.classList.remove("hidden");
+});
+document.getElementById("btn-settings-close")!.addEventListener("click", () => {
+  document.getElementById("modal-settings")!.classList.add("hidden");
+});
+document.getElementById("modal-settings")!.addEventListener("click", (e) => {
+  if (e.target === e.currentTarget)
+    (e.currentTarget as HTMLElement).classList.add("hidden");
+});
+
+// Settings toggles
 document.getElementById("toggle-open-at-login")!.addEventListener("change", (e) => {
-  send({
-    type: "settings:open-at-login",
-    enabled: (e.target as HTMLInputElement).checked,
-  });
+  send({ type: "settings:open-at-login", enabled: (e.target as HTMLInputElement).checked });
 });
 document.getElementById("toggle-auto-restart")!.addEventListener("change", (e) => {
-  send({
-    type: "settings:auto-restart",
-    enabled: (e.target as HTMLInputElement).checked,
-  });
+  send({ type: "settings:auto-restart", enabled: (e.target as HTMLInputElement).checked });
 });
 document.getElementById("toggle-auto-check-updates")!.addEventListener("change", (e) => {
-  send({
-    type: "settings:auto-check-updates",
-    enabled: (e.target as HTMLInputElement).checked,
-  });
+  send({ type: "settings:auto-check-updates", enabled: (e.target as HTMLInputElement).checked });
+});
+document.getElementById("toggle-mask-secrets")!.addEventListener("change", (e) => {
+  send({ type: "secrets:mask", enabled: (e.target as HTMLInputElement).checked });
+});
+document.getElementById("toggle-keychain-secrets")!.addEventListener("change", (e) => {
+  send({ type: "secrets:keychain", enabled: (e.target as HTMLInputElement).checked });
+});
+document.getElementById("toggle-error-logging")!.addEventListener("change", (e) => {
+  send({ type: "settings:error-logging", enabled: (e.target as HTMLInputElement).checked });
+});
+document.getElementById("toggle-show-onboarding")!.addEventListener("change", (e) => {
+  send({ type: "settings:show-onboarding", enabled: (e.target as HTMLInputElement).checked });
 });
 document.getElementById("release-channel")!.addEventListener("change", (e) => {
   const channel = (e.target as HTMLSelectElement).value as "stable" | "beta";
@@ -1151,10 +1422,36 @@ document.getElementById("release-channel")!.addEventListener("change", (e) => {
 document.getElementById("app-search")!.addEventListener("input", (e) => {
   const value = (e.target as HTMLInputElement).value;
   if (searchDebounce) clearTimeout(searchDebounce);
-  searchDebounce = setTimeout(() => {
-    searchTerm = value;
-    renderGrid();
-  }, 120);
+
+  if (searchMode === "hub") {
+    searchDebounce = setTimeout(() => {
+      const query = value.trim();
+      const cached = hubCache.get(query || "");
+      if (cached) {
+        renderHubInlineResults(cached, query || undefined);
+      } else {
+        document.getElementById("hub-inline-status")!.textContent = query
+          ? `Searching "${query}"…`
+          : "Loading popular images…";
+        hubResultsTarget = "inline";
+        send({ type: "dockerhub:browse", query: query || undefined });
+      }
+    }, 350);
+  } else {
+    searchDebounce = setTimeout(() => {
+      searchTerm = value;
+      renderGrid();
+    }, 120);
+  }
+});
+
+// ── Search mode toggle buttons ───────────────────────────────────
+
+document.getElementById("search-mode-apps")!.addEventListener("click", () => {
+  if (searchMode !== "apps") setSearchMode("apps");
+});
+document.getElementById("search-mode-hub")!.addEventListener("click", () => {
+  if (searchMode !== "hub") setSearchMode("hub");
 });
 
 // ── Docker Hub ──────────────────────────────────────────────────
@@ -1167,6 +1464,7 @@ document.getElementById("btn-hub")!.addEventListener("click", () => {
     renderHubResults(undefined);
   } else {
     document.getElementById("hub-status")!.textContent = "Loading popular images...";
+    hubResultsTarget = "modal";
     send({ type: "dockerhub:browse" });
   }
 });
@@ -1180,6 +1478,7 @@ document.getElementById("btn-hub-popular")!.addEventListener("click", () => {
     renderHubResults(undefined);
   } else {
     document.getElementById("hub-status")!.textContent = "Loading popular images...";
+    hubResultsTarget = "modal";
     send({ type: "dockerhub:browse" });
   }
 });
@@ -1194,6 +1493,7 @@ document.getElementById("btn-hub-search")!.addEventListener("click", () => {
   document.getElementById("hub-status")!.textContent = query
     ? `Searching "${query}"...`
     : "Loading popular images...";
+  hubResultsTarget = "modal";
   send({ type: "dockerhub:browse", query: query || undefined });
 });
 document.getElementById("hub-search")!.addEventListener("keydown", (e) => {

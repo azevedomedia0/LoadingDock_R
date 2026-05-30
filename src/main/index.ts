@@ -1,8 +1,8 @@
 // src/main/index.ts
 import { BrowserWindow, Tray, ApplicationMenu } from "electrobun/bun";
-import { tmpdir, homedir } from "os";
+import { tmpdir, homedir, cpus, loadavg } from "os";
 import { join } from "path";
-import { writeFileSync, mkdirSync, chmodSync, rmSync } from "fs";
+import { writeFileSync, mkdirSync, chmodSync, rmSync, readdirSync, readFileSync } from "fs";
 import type { ContainerStatus, DockerApp, IpcMessage } from "../shared/types";
 import { loadRegistry, registryExists, saveRegistry } from "./registry";
 import {
@@ -12,13 +12,18 @@ import {
   startDockerDaemon,
   launchApp,
   stopApp,
+  removeAppVolumes,
+  removeAppImage,
+  checkImageUpdateAvailable,
+  listDockerNetworks,
+  createDockerNetwork,
 } from "./docker";
 import { normalizeName } from "../shared/validation";
 import { importComposeAsApps } from "./compose";
 import { getPopularImages, searchImages, fetchAllOgImages } from "./dockerhub";
 import { presetForImage } from "../shared/presets";
 import { loadMetricsHistory, saveMetricsHistory } from "./metrics-store";
-import { loadSettings, saveSettings } from "./settings";
+import { loadSettings, saveSettings, type WindowBounds } from "./settings";
 import {
   nextUnhealthyStreak,
   shouldRestartUnhealthy,
@@ -97,7 +102,18 @@ let autoRestartOnUnhealthy = true;
 let errorLoggingEnabled = true;
 let openAtLogin = false;
 let autoCheckUpdates = true;
+let theme: "dark" | "light" = "dark";
+let showOnboarding = true;
+let dataDir = "~/.loading-dock";
+let windowBounds: WindowBounds = { x: 100, y: 80, width: 920, height: 640 };
+
+// System defaults — resolved once at startup, never change
+const systemUid = String((process as any).getuid?.() ?? 1000);
+const systemGid = String((process as any).getgid?.() ?? 1000);
+const systemTz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 let _pendingUpdate: ReleaseInfo | null = null;
+// Apps waiting to have their web UI window opened once the container is running
+const pendingWebUiOpen = new Set<string>();
 const unhealthyStreaks = new Map<string, number>();
 const healthRestartInProgress = new Set<string>();
 
@@ -152,6 +168,10 @@ async function main() {
   errorLoggingEnabled = settings.errorLoggingEnabled;
   openAtLogin = settings.openAtLogin ?? false;
   autoCheckUpdates = settings.autoCheckUpdates ?? true;
+  theme = settings.theme ?? "dark";
+  showOnboarding = settings.showOnboarding ?? true;
+  dataDir = settings.dataDir ?? "~/.loading-dock";
+  if (settings.windowBounds) windowBounds = settings.windowBounds;
   dockerAvailable = await isDockerAvailable();
 
   setupProcessErrorHandlers();
@@ -161,6 +181,9 @@ async function main() {
   setupMenu();
   openLauncher();
   startRuntimeTelemetry();
+  startSystemMetricsPolling();
+  startImageUpdatePolling();
+  startLocalDomainProxy();
   scheduleStartupUpdateCheck();
 
   // If Docker is not yet running, attempt to start it in the background
@@ -170,8 +193,20 @@ async function main() {
     console.log(
       "[loading-dock] Docker not running — attempting to start daemon…",
     );
-    ensureDockerRunning();
+    void ensureDockerRunning();
+  } else {
+    // Docker is already running — launch all apps immediately
+    void autoLaunchAllApps();
   }
+}
+
+/** Launches every installed app in parallel on startup. */
+async function autoLaunchAllApps() {
+  if (apps.length === 0) return;
+  console.log(`[loading-dock] Auto-launching ${apps.length} installed app(s)…`);
+  await Promise.allSettled(
+    apps.map((app) => handleIpc({ type: "app:launch", id: app.id })),
+  );
 }
 
 /** Starts the Docker daemon and notifies the launcher when it becomes ready. */
@@ -181,6 +216,7 @@ async function ensureDockerRunning() {
     dockerAvailable = true;
     sendToLauncher({ type: "docker:availability", available: true });
     console.log("[loading-dock] Docker daemon is now ready.");
+    void autoLaunchAllApps();
   } else {
     console.error(
       "[loading-dock] Docker daemon did not become ready within the timeout.",
@@ -233,6 +269,100 @@ function sendNativeNotification(title: string, body: string) {
   }
 }
 
+async function collectSystemMetrics(): Promise<{ cpuPercent: number; gpuPercent: number | null }> {
+  // CPU: normalise 1-minute load average against logical CPU count → 0-100%
+  const cpuCount = cpus().length || 1;
+  const cpuPercent = Math.min(100, Math.round((loadavg()[0] / cpuCount) * 100));
+
+  // GPU: macOS only — ioreg exposes Device Utilization % without sudo on Intel/AMD GPUs
+  let gpuPercent: number | null = null;
+  if (process.platform === "darwin") {
+    try {
+      const result = Bun.spawnSync(
+        ["ioreg", "-r", "-d", "1", "-w", "0", "-c", "IOAccelerator"],
+        { stdout: "pipe", stderr: "pipe" },
+      );
+      const out = result.stdout.toString();
+      const m =
+        out.match(/"Device Utilization %"\s*=\s*(\d+)/) ??
+        out.match(/"Renderer Utilization"\s*=\s*(\d+)/);
+      if (m) gpuPercent = Number(m[1]);
+    } catch {
+      // GPU data not accessible — leave as null
+    }
+  }
+
+  return { cpuPercent, gpuPercent };
+}
+
+// ── Image update polling (feature 1) ──────────────────────────
+async function checkAllImageUpdates() {
+  for (const app of apps) {
+    const available = await checkImageUpdateAvailable(app);
+    broadcast({ type: "app:image-update", id: app.id, available });
+  }
+}
+
+function startImageUpdatePolling() {
+  // Check on startup (after a short delay so Docker is ready), then every 6 hours
+  setTimeout(() => void checkAllImageUpdates(), 30_000);
+  setInterval(() => void checkAllImageUpdates(), 6 * 60 * 60 * 1000);
+}
+
+// ── Local domain reverse proxy (feature 10) ───────────────────
+const LOCAL_PROXY_PORT = 17300;
+
+function startLocalDomainProxy() {
+  try {
+    Bun.serve({
+      port: LOCAL_PROXY_PORT,
+      async fetch(req) {
+        const hostHeader = req.headers.get("host") ?? "";
+        const subdomain = hostHeader.split(":")[0].replace(/\.localhost$/i, "");
+        const app = apps.find((a) => a.localDomain === subdomain);
+        if (!app) {
+          return new Response(
+            `<html><body><h2>404 — no app with local domain <code>${subdomain}.localhost</code></h2></body></html>`,
+            { status: 404, headers: { "content-type": "text/html" } },
+          );
+        }
+        const hostPort = app.ports[0]?.split(":")[0];
+        if (!hostPort) return new Response("App has no host port", { status: 502 });
+        const url = new URL(req.url);
+        const targetUrl = `http://localhost:${hostPort}${url.pathname}${url.search}`;
+        try {
+          const proxyHeaders = new Headers(req.headers);
+          proxyHeaders.set("host", `localhost:${hostPort}`);
+          const upstream = await fetch(targetUrl, {
+            method: req.method,
+            headers: proxyHeaders,
+            body: req.method !== "GET" && req.method !== "HEAD" ? req.body : undefined,
+            redirect: "manual",
+          });
+          return new Response(upstream.body, {
+            status: upstream.status,
+            headers: upstream.headers,
+          });
+        } catch {
+          return new Response("Gateway error — is the app running?", { status: 502 });
+        }
+      },
+    });
+    console.log(`[loading-dock] Local domain proxy on port ${LOCAL_PROXY_PORT}`);
+  } catch (err) {
+    console.error("[loading-dock] Could not start local domain proxy:", err);
+  }
+}
+
+function startSystemMetricsPolling() {
+  const poll = async () => {
+    const metrics = await collectSystemMetrics();
+    broadcast({ type: "system:metrics", ...metrics });
+  };
+  void poll(); // immediate first reading
+  setInterval(() => void poll(), 4000);
+}
+
 function openLauncher() {
   if (launcherWindow) {
     launcherWindow.show();
@@ -241,12 +371,31 @@ function openLauncher() {
   launcherWindow = new BrowserWindow({
     title: "The Loading Dock(r)",
     url: "views://launcher/index.html",
-    frame: { x: 100, y: 80, width: 920, height: 640 },
+    frame: windowBounds,
   } as any);
+
+  // Persist bounds whenever the user resizes or moves the window
+  let saveBoundsDebounce: ReturnType<typeof setTimeout> | null = null;
+  const persistBounds = (bounds: WindowBounds) => {
+    windowBounds = bounds;
+    if (saveBoundsDebounce) clearTimeout(saveBoundsDebounce);
+    saveBoundsDebounce = setTimeout(() => {
+      void saveSettings({ windowBounds: bounds });
+    }, 500);
+  };
+  launcherWindow.on("resize", (e: any) => {
+    const { x, y, width, height } = e as WindowBounds;
+    persistBounds({ x, y, width, height });
+  });
+  launcherWindow.on("move", (e: any) => {
+    const { x, y, width, height } = e as WindowBounds;
+    persistBounds({ x, y, width, height });
+  });
+
   launcherWindow.webview.on("dom-ready", () => {
     sendToLauncher({ type: "apps:list", apps });
     sendToLauncher({ type: "docker:availability", available: dockerAvailable });
-    sendToLauncher({ type: "onboarding:state", firstRun: isFirstRun });
+    sendToLauncher({ type: "onboarding:state", firstRun: isFirstRun, showOnboarding, dataDir, systemUid, systemGid, systemTz });
     sendToLauncher({ type: "update:state", channel: releaseChannel });
     broadcastSettingsState();
     broadcastOgImages();
@@ -317,6 +466,15 @@ async function handleIpc(message: IpcMessage) {
               t.containerId = containerId;
             }
             broadcast({ type: "app:status", id, status, containerId });
+            // Auto-open web UI if the app was launched from a desktop shortcut click
+            if (status === "running" && pendingWebUiOpen.has(id)) {
+              pendingWebUiOpen.delete(id);
+              const target = apps.find((a) => a.id === id);
+              if (target?.openUrl) openWebUiWindow(target);
+            }
+            if (status === "error" || status === "stopped") {
+              pendingWebUiOpen.delete(id);
+            }
           },
           (id, line) => broadcast({ type: "docker:log", id, line }),
           (id, status, detail) =>
@@ -408,6 +566,23 @@ async function handleIpc(message: IpcMessage) {
       broadcastSettingsState();
       break;
     }
+    case "onboarding:dismiss": {
+      if (message.noStartup) {
+        showOnboarding = false;
+        await saveSettings({ showOnboarding: false });
+      }
+      break;
+    }
+    case "settings:show-onboarding": {
+      showOnboarding = message.enabled;
+      await saveSettings({ showOnboarding });
+      break;
+    }
+    case "settings:data-dir": {
+      dataDir = message.path;
+      await saveSettings({ dataDir });
+      break;
+    }
     case "settings:open-at-login": {
       openAtLogin = message.enabled;
       await saveSettings({ openAtLogin });
@@ -425,6 +600,11 @@ async function handleIpc(message: IpcMessage) {
     case "settings:auto-check-updates": {
       autoCheckUpdates = message.enabled;
       await saveSettings({ autoCheckUpdates });
+      break;
+    }
+    case "settings:theme": {
+      theme = message.theme;
+      await saveSettings({ theme });
       break;
     }
     case "errors:export": {
@@ -577,10 +757,16 @@ async function handleIpc(message: IpcMessage) {
         });
         return;
       }
+      const oldApp = apps[idx];
       apps[idx] = { ...message.app, status: apps[idx].status };
       await saveRegistry(apps);
       broadcast({ type: "apps:list", apps });
       broadcastOgImages();
+      // If the name changed, remove the old-named shortcut and create a fresh one
+      if (oldApp.name !== message.app.name) {
+        removeDesktopIcon(oldApp);
+        void createDesktopIcon(apps[idx]);
+      }
       break;
     }
     case "app:remove": {
@@ -588,7 +774,11 @@ async function handleIpc(message: IpcMessage) {
       apps = apps.filter((a) => a.id !== message.id);
       await saveRegistry(apps);
       broadcast({ type: "apps:list", apps });
-      if (removed) removeDesktopIcon(removed);
+      if (removed) {
+        removeDesktopIcon(removed);
+        if (message.cleanVolumes) void removeAppVolumes(removed);
+        if (message.cleanImage) void removeAppImage(removed);
+      }
       break;
     }
     case "compose:import": {
@@ -676,6 +866,35 @@ async function handleIpc(message: IpcMessage) {
       broadcast({ type: "apps:list", apps });
       break;
     }
+    case "networks:list": {
+      const networks = await listDockerNetworks();
+      broadcast({ type: "networks:listed", networks });
+      break;
+    }
+    case "network:create": {
+      await createDockerNetwork(message.name);
+      const networks = await listDockerNetworks();
+      broadcast({ type: "networks:listed", networks });
+      break;
+    }
+    case "dialog:pick-folder": {
+      if (process.platform !== "darwin") break;
+      try {
+        const result = Bun.spawnSync(
+          ["osascript", "-e", 'POSIX path of (choose folder with prompt "Select folder")'],
+          { stdout: "pipe", stderr: "pipe" },
+        );
+        const path = result.stdout.toString().trim();
+        if (path) {
+          broadcast({ type: "dialog:folder-result", callbackId: message.callbackId, path });
+        } else {
+          broadcast({ type: "dialog:folder-cancelled", callbackId: message.callbackId });
+        }
+      } catch {
+        broadcast({ type: "dialog:folder-cancelled", callbackId: message.callbackId });
+      }
+      break;
+    }
   }
 }
 
@@ -697,6 +916,14 @@ function broadcastSettingsState() {
     errorLoggingEnabled,
     openAtLogin,
     autoCheckUpdates,
+    theme,
+    secretsMaskingEnabled,
+    keychainSecretsEnabled,
+    showOnboarding,
+    dataDir,
+    systemUid,
+    systemGid,
+    systemTz,
   });
 }
 
@@ -913,7 +1140,7 @@ function updateTrayMenu() {
   const hasRunning = apps.some((a) => a.status === "running");
 
   trayInstance.setMenu([
-    { type: "normal", label: "Open The Loading Dock(r)", action: "open-launcher" },
+    { type: "normal", label: "Open Dashboard", action: "open-launcher" },
     { type: "separator" },
     ...appItems,
     { type: "separator" },
@@ -974,9 +1201,17 @@ function startLaunchServer() {
             const app = apps.find((a) => a.id === id);
             if (app) {
               if (app.status === "running") {
-                openLauncher();
-                openAppWindow(app);
+                // Open the web UI as a dedicated desktop app window if URL is set,
+                // otherwise fall back to the logs/metrics panel
+                if (app.openUrl) {
+                  openWebUiWindow(app);
+                } else {
+                  openLauncher();
+                  openAppWindow(app);
+                }
               } else {
+                // Queue web UI open for when the container is ready
+                if (app.openUrl) pendingWebUiOpen.add(id);
                 void handleIpc({ type: "app:launch", id });
                 openLauncher();
               }
@@ -1020,6 +1255,7 @@ async function createDesktopIcon(app: DockerApp) {
     const slug = iconSlugForApp(app.image);
     const iconPng = join(resourcesDir, "icon.png");
     const iconIcns = join(resourcesDir, "icon.icns");
+    const iconsetDir = join(resourcesDir, "icon.iconset");
     let hasIcon = false;
     try {
       const resp = await fetch(
@@ -1027,14 +1263,26 @@ async function createDesktopIcon(app: DockerApp) {
       );
       if (resp.ok) {
         writeFileSync(iconPng, Buffer.from(await resp.arrayBuffer()));
-        // Convert PNG → ICNS using macOS built-in sips
-        const { exitCode } = Bun.spawnSync([
-          "sips", "-s", "format", "icns", iconPng, "--out", iconIcns,
-        ]);
-        hasIcon = exitCode === 0;
+        // Build a proper .iconset with all required sizes then convert with iconutil.
+        // sips single-step ICNS conversion is unreliable — Finder often ignores it.
+        mkdirSync(iconsetDir, { recursive: true });
+        let iconsetOk = true;
+        for (const size of [16, 32, 128, 256, 512]) {
+          const r1 = Bun.spawnSync(["sips", "-z", String(size), String(size), iconPng,
+            "--out", join(iconsetDir, `icon_${size}x${size}.png`)]);
+          const r2 = Bun.spawnSync(["sips", "-z", String(size * 2), String(size * 2), iconPng,
+            "--out", join(iconsetDir, `icon_${size}x${size}@2x.png`)]);
+          if (r1.exitCode !== 0 || r2.exitCode !== 0) { iconsetOk = false; break; }
+        }
+        if (iconsetOk) {
+          const { exitCode } = Bun.spawnSync(["iconutil", "-c", "icns", iconsetDir, "-o", iconIcns]);
+          hasIcon = exitCode === 0;
+        }
+        try { rmSync(iconsetDir, { recursive: true, force: true }); } catch {}
       }
     } catch {
       // Icon fetch/convert failed — bundle will use the generic app icon
+      try { rmSync(iconsetDir, { recursive: true, force: true }); } catch {}
     }
 
     // ── Info.plist ───────────────────────────────────────────────
@@ -1071,9 +1319,29 @@ async function createDesktopIcon(app: DockerApp) {
 
 function removeDesktopIcon(app: DockerApp) {
   if (process.platform !== "darwin") return;
+  // Remove the path derived from the current name (fast path)
   try {
     rmSync(desktopIconPath(app), { recursive: true, force: true });
   } catch {}
+  // Also scan the Desktop for any shortcut whose bundle ID matches this app's
+  // immutable ID. This catches shortcuts left behind after a rename.
+  try {
+    const desktopPath = join(homedir(), "Desktop");
+    const targetBundleId = `com.loadingdock.shortcut.${app.id}`;
+    for (const entry of readdirSync(desktopPath, { withFileTypes: true })) {
+      if (!entry.name.endsWith(".app")) continue;
+      const plistPath = join(desktopPath, entry.name, "Contents", "Info.plist");
+      try {
+        if (readFileSync(plistPath, "utf8").includes(targetBundleId)) {
+          rmSync(join(desktopPath, entry.name), { recursive: true, force: true });
+        }
+      } catch {
+        // Unreadable plist or not one of ours — skip
+      }
+    }
+  } catch {
+    // Desktop not readable — skip
+  }
 }
 
 function setupMenu() {

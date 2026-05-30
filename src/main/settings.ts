@@ -4,6 +4,13 @@ import { getRegistryDir } from "./registry";
 
 const SETTINGS_FILE = "settings.json";
 
+export interface WindowBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export interface AppSettings {
   releaseChannel: "stable" | "beta";
   notificationsEnabled: boolean;
@@ -14,6 +21,10 @@ export interface AppSettings {
   errorLoggingEnabled: boolean;
   openAtLogin: boolean;
   autoCheckUpdates: boolean;
+  theme: "dark" | "light";
+  showOnboarding: boolean;
+  dataDir: string;
+  windowBounds?: WindowBounds;
 }
 
 const DEFAULTS: AppSettings = {
@@ -26,6 +37,9 @@ const DEFAULTS: AppSettings = {
   errorLoggingEnabled: true,
   openAtLogin: false,
   autoCheckUpdates: true,
+  theme: "dark",
+  showOnboarding: true,
+  dataDir: "~/.loading-dock",
 };
 
 export function getSettingsFile(

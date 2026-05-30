@@ -31,6 +31,10 @@ export interface DockerApp {
   containerId?: string;
   keychainEnvKeys?: string[];
   sortOrder?: number;
+  /** Named Docker network to attach the container to (feature 9) */
+  network?: string;
+  /** Local domain subdomain for the built-in reverse proxy, e.g. "jellyfin" → jellyfin.localhost:17300 (feature 10) */
+  localDomain?: string;
 }
 
 export interface AppMetricsPoint {
@@ -52,7 +56,8 @@ export interface DockerHubImage {
 
 export type IpcMessage =
   | { type: "apps:list"; apps: DockerApp[] }
-  | { type: "onboarding:state"; firstRun: boolean }
+  | { type: "onboarding:state"; firstRun: boolean; showOnboarding: boolean; dataDir: string; systemUid: string; systemGid: string; systemTz: string }
+  | { type: "onboarding:dismiss"; noStartup: boolean }
   | { type: "docker:availability"; available: boolean }
   | {
       type: "app:status";
@@ -70,7 +75,7 @@ export type IpcMessage =
       type: "app:update";
       app: Omit<DockerApp, "status" | "containerId">;
     }
-  | { type: "app:remove"; id: string }
+  | { type: "app:remove"; id: string; cleanVolumes?: boolean; cleanImage?: boolean }
   | { type: "app:restart"; id: string }
   | {
       type: "compose:import";
@@ -117,7 +122,18 @@ export type IpcMessage =
   | { type: "settings:error-logging"; enabled: boolean }
   | { type: "settings:open-at-login"; enabled: boolean }
   | { type: "settings:auto-check-updates"; enabled: boolean }
-  | { type: "settings:state"; autoRestartOnUnhealthy: boolean; errorLoggingEnabled: boolean; openAtLogin: boolean; autoCheckUpdates: boolean }
+  | { type: "settings:theme"; theme: "dark" | "light" }
+  | { type: "settings:state"; autoRestartOnUnhealthy: boolean; errorLoggingEnabled: boolean; openAtLogin: boolean; autoCheckUpdates: boolean; theme: "dark" | "light"; secretsMaskingEnabled: boolean; keychainSecretsEnabled: boolean; showOnboarding: boolean; dataDir: string; systemUid: string; systemGid: string; systemTz: string }
+  | { type: "settings:show-onboarding"; enabled: boolean }
+  | { type: "settings:data-dir"; path: string }
   | { type: "errors:export" }
   | { type: "errors:exported"; json: string }
-  | { type: "app:health-restart"; id: string; name: string };
+  | { type: "app:health-restart"; id: string; name: string }
+  | { type: "system:metrics"; cpuPercent: number; gpuPercent: number | null }
+  | { type: "app:image-update"; id: string; available: boolean }
+  | { type: "networks:list" }
+  | { type: "networks:listed"; networks: string[] }
+  | { type: "network:create"; name: string }
+  | { type: "dialog:pick-folder"; callbackId: string }
+  | { type: "dialog:folder-result"; callbackId: string; path: string }
+  | { type: "dialog:folder-cancelled"; callbackId: string };

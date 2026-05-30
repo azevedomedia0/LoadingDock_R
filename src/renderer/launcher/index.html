@@ -16,30 +16,35 @@
           The Loading Dock(r)
         </span>
         <div class="actions">
+          <div class="sys-metrics" aria-label="System usage">
+            <div class="sys-metric" id="sys-cpu" title="CPU Usage">
+              <span class="sys-metric__label">CPU</span>
+              <span class="sys-metric__value" id="sys-cpu-val">—</span>
+            </div>
+            <div class="sys-metric" id="sys-gpu" title="GPU Usage">
+              <span class="sys-metric__label">GPU</span>
+              <span class="sys-metric__value" id="sys-gpu-val">—</span>
+            </div>
+          </div>
+          <!-- Update status chip — hidden until an update state is active -->
+          <div id="update-chip" class="update-chip hidden" aria-live="polite">
+            <span id="update-chip-label"></span>
+            <div id="update-chip-bar" class="update-chip__bar hidden">
+              <div id="update-chip-fill" class="update-chip__fill" style="width:0%"></div>
+            </div>
+          </div>
+          <button id="btn-theme-toggle" class="btn-icon" title="Toggle theme" aria-label="Toggle dark/light mode">
+            <svg id="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="hidden"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+            <svg id="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          </button>
           <button id="btn-check-update" class="btn-icon" title="Check for updates" aria-label="Check for updates"><svg width="20" height="20" viewBox="0 0 24 24" stroke-width="1.5" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M11 21H4C2.89543 21 2 20.1046 2 19V5C2 3.89543 2.89543 3 4 3H20C21.1046 3 22 3.89543 22 5V12" stroke="white" stroke-width="1.5" stroke-linecap="round"/><path d="M2 7L22 7" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 5.01L5.01 4.99889" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 5.01L8.01 4.99889" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M11 5.01L11.01 4.99889" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M21.6665 16.6667C21.0477 15.097 19.6346 14 17.9903 14C16.2319 14 14.7378 15.2545 14.1969 17" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M19.9952 16.7723H21.4002C21.7316 16.7723 22.0002 16.5036 22.0002 16.1723V14.55" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M14.3337 19.3333C14.9525 20.903 16.3657 22 18.01 22C19.7684 22 21.2624 20.7455 21.8033 19" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M16.005 19.2277H14.6001C14.2687 19.2277 14.0001 19.4964 14.0001 19.8277V21.45" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-          <button id="btn-import-registry" class="btn-icon" title="Pull registry" aria-label="Pull registry"><svg width="20" height="20" viewBox="0 0 24 24" stroke-width="1.5" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M21 22V2" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M15 16H5C3.89543 16 3 15.1046 3 14L3 10C3 8.89543 3.89543 8 5 8H15C16.1046 8 17 8.89543 17 10V14C17 15.1046 16.1046 16 15 16Z" stroke="white" stroke-width="1.5"/></svg></button>
-          <button id="btn-export-registry" class="btn-icon" title="Push registry" aria-label="Push registry"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke-width="1.5"><path d="M3 22L3 2" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M19 16H9C7.89543 16 7 15.1046 7 14V10C7 8.89543 7.89543 8 9 8H19C20.1046 8 21 8.89543 21 10V14C21 15.1046 20.1046 16 19 16Z" fill="white" stroke="white" stroke-width="1.5"/></svg></button>
+          <button id="btn-import-registry" class="btn-icon" title="Pull registry" aria-label="Pull registry"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><path d="M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/><polyline points="7 11 12 16 17 11"/><line x1="12" y1="16" x2="12" y2="4"/></svg></button>
+          <button id="btn-export-registry" class="btn-icon" title="Push registry" aria-label="Push registry"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><path d="M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/><polyline points="17 9 12 4 7 9"/><line x1="12" y1="4" x2="12" y2="16"/></svg></button>
           <button id="btn-add" class="btn-icon" title="Add app" aria-label="Add new Docker app"><svg width="20" height="20" stroke-width="1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 22V13M12 13L15.5 16.5M12 13L8.5 16.5" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 17.6073C21.4937 17.0221 23 15.6889 23 13C23 9 19.6667 8 18 8C18 6 18 2 12 2C6 2 6 6 6 8C4.33333 8 1 9 1 13C1 15.6889 2.50628 17.0221 4 17.6073" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <button id="btn-settings" class="btn-icon" title="Settings" aria-label="Open settings"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
         </div>
       </header>
 
-      <!-- Update notification banner -->
-      <div id="update-banner" class="banner banner--update hidden">
-        <div class="update-banner__body">
-          <strong id="update-banner-title"></strong>
-          <span id="update-banner-notes"></span>
-        </div>
-        <div class="update-banner__progress hidden">
-          <div class="progress-bar">
-            <div id="update-progress-fill" class="progress-bar__fill" style="width:0%"></div>
-          </div>
-          <span id="update-progress-label">0%</span>
-        </div>
-        <div class="update-banner__actions">
-          <button id="btn-update-install" class="btn btn--primary btn--sm" aria-label="Install update">Install</button>
-          <button id="btn-update-later" class="btn btn--ghost btn--sm" aria-label="Dismiss update notification">Later</button>
-        </div>
-      </div>
 
       <div id="docker-warning" class="banner banner--warn hidden">
         <span id="docker-warning-text">Starting Docker — please wait…</span>
@@ -47,21 +52,98 @@
       <div id="error-banner" class="banner banner--error hidden"></div>
       <div id="welcome-banner" class="banner hidden"></div>
 
+      <!-- Onboarding modal -->
+      <div id="onboarding-panel" class="modal hidden">
+        <div class="modal-box modal-box--onboarding">
+          <div class="onboarding-hero">
+            <img src="../../../App_Icon.png" class="onboarding-logo" alt="" aria-hidden="true" />
+            <div>
+              <h2 class="onboarding-title">Welcome to The Loading Dock(r)</h2>
+              <p class="onboarding-sub">Run Docker containers as desktop apps — no terminal needed.</p>
+            </div>
+          </div>
+          <div class="onboarding-datadir">
+            <div class="onboarding-datadir__label">
+              <strong>App data location</strong>
+              <small>Where container configs, databases, and other app data will be stored on your Mac.</small>
+            </div>
+            <div class="onboarding-datadir__picker">
+              <span id="onboarding-datadir-path" class="onboarding-datadir__path">~/.loading-dock</span>
+              <button id="btn-onboarding-pick-dir" class="btn btn--ghost btn--sm">Browse…</button>
+            </div>
+          </div>
+
+          <div class="onboarding-steps">
+            <div class="onboarding-step">
+              <div class="onboarding-step__num">1</div>
+              <div class="onboarding-step__body">
+                <strong>Add an app</strong>
+                <span>Click the <b>↑</b> button in the toolbar or browse Docker Hub to add a container. Give it a name, image, ports, and an optional Web UI URL.</span>
+              </div>
+            </div>
+            <div class="onboarding-step">
+              <div class="onboarding-step__num">2</div>
+              <div class="onboarding-step__body">
+                <strong>Launch it</strong>
+                <span>Click an app's icon to start the container. If it has a Web UI, it opens automatically as a dedicated desktop window — no browser needed.</span>
+              </div>
+            </div>
+            <div class="onboarding-step">
+              <div class="onboarding-step__num">3</div>
+              <div class="onboarding-step__body">
+                <strong>Desktop shortcuts</strong>
+                <span>Right-click any installed app to create a shortcut on your Desktop. Double-clicking it launches the container and opens its Web UI.</span>
+              </div>
+            </div>
+            <div class="onboarding-step">
+              <div class="onboarding-step__num">4</div>
+              <div class="onboarding-step__body">
+                <strong>Logs &amp; metrics</strong>
+                <span>Click anywhere on a card (not the icon) to open its detail panel — live logs, CPU/memory charts, health status, and settings.</span>
+              </div>
+            </div>
+          </div>
+          <div class="onboarding-footer">
+            <label class="onboarding-dismiss-opt">
+              <input type="checkbox" id="onboarding-no-startup" />
+              Don't show on startup
+            </label>
+            <button id="btn-onboarding-dismiss" class="btn btn--primary">Get Started</button>
+          </div>
+        </div>
+      </div>
+
       <div class="toolbar-filters">
-        <input
-          id="app-search"
-          class="search-input"
-          type="search"
-          placeholder="Search installed apps…"
-          autocomplete="off"
-        />
-<button id="btn-hub" class="btn-hub-toolbar" title="Browse Docker Hub" aria-label="Browse Docker Hub">
+        <div class="search-bar-wrap">
+          <input
+            id="app-search"
+            class="search-input"
+            type="search"
+            placeholder="Search installed apps…"
+            autocomplete="off"
+          />
+        </div>
+        <div class="search-mode-toggle" role="group" aria-label="Search scope">
+          <button id="search-mode-apps" class="search-mode-btn search-mode-btn--active" aria-pressed="true">My Apps</button>
+          <button id="search-mode-hub" class="search-mode-btn" aria-pressed="false">
+            <img src="https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons@main/png/docker.png" alt="" class="search-mode-btn__img" />
+            Docker Hub
+          </button>
+        </div>
+        <!-- Legacy hub modal trigger — kept for direct modal access -->
+        <button id="btn-hub" class="btn-hub-toolbar hidden" title="Browse Docker Hub" aria-label="Browse Docker Hub">
           <img src="https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons@main/png/docker.png" alt="" class="btn-hub-toolbar__img" />
           Docker Hub
         </button>
       </div>
 
       <main class="sections">
+        <!-- Inline Docker Hub search results (visible only in hub mode) -->
+        <div id="section-hub-inline" class="section-hub-inline hidden">
+          <div id="hub-inline-status" class="hub-inline__status">Type to search Docker Hub…</div>
+          <div id="hub-inline-grid" class="hub-grid hub-inline__grid"></div>
+        </div>
+
         <details id="section-installed" class="section-dropdown" open>
           <summary>Installed</summary>
           <div id="grid" class="app-grid"></div>
@@ -105,6 +187,17 @@
               <label>Timeout (s) <input id="add-health-timeout" type="number" min="1" placeholder="5" /></label>
               <label>Retries <input id="add-health-retries" type="number" min="1" placeholder="3" /></label>
             </div>
+            <div class="split2">
+              <label>Docker Network
+                <div class="network-row">
+                  <select id="add-network"><option value="">Default</option></select>
+                  <button type="button" class="btn btn--ghost btn--xs" id="add-network-create" title="Create new network">+ New</button>
+                </div>
+              </label>
+              <label>Local Domain <small class="label-hint">.localhost:17300</small>
+                <input id="add-local-domain" type="text" placeholder="myapp" />
+              </label>
+            </div>
             <div class="field-section">
               <div class="field-section__header">
                 <span>Environment Variables</span>
@@ -138,46 +231,88 @@
 
       <!-- Edit modal -->
       <div id="modal-edit" class="modal hidden">
-        <div class="modal-box">
-          <h2>Edit Docker App</h2>
-          <label>Name <input id="edit-name" type="text" /></label>
-          <label>Docker Image <input id="edit-image" type="text" /></label>
-          <label>Ports <input id="edit-ports" type="text" /></label>
-          <label>Open URL (optional) <input id="edit-url" type="text" /></label>
-          <label>Group <input id="edit-group" type="text" /></label>
-          <label>Tags (comma separated) <input id="edit-tags" type="text" /></label>
-          <label>Restart Policy
-            <select id="edit-restart">
-              <option value="no">No</option>
-              <option value="on-failure">On failure</option>
-              <option value="unless-stopped">Unless stopped</option>
-            </select>
-          </label>
-          <label>Healthcheck Command <input id="edit-health-cmd" type="text" /></label>
-          <div class="split3">
-            <label>Interval (s) <input id="edit-health-interval" type="number" min="1" /></label>
-            <label>Timeout (s) <input id="edit-health-timeout" type="number" min="1" /></label>
-            <label>Retries <input id="edit-health-retries" type="number" min="1" /></label>
-          </div>
+        <div class="modal-box modal-box--edit">
+          <h2 class="edit-modal__title">Edit Docker App</h2>
 
-          <div class="field-section">
-            <div class="field-section__header">
-              <span>Environment Variables</span>
-              <button class="btn btn--ghost btn--xs" id="edit-env-add-row" aria-label="Add environment variable">+ Add</button>
+          <div class="edit-modal__body">
+            <!-- Row 1: Name + Image -->
+            <div class="edit-fields-grid">
+              <label>Name <input id="edit-name" type="text" /></label>
+              <label>Docker Image <input id="edit-image" type="text" /></label>
             </div>
-            <div id="edit-env-table" class="kv-table"></div>
-          </div>
 
-          <div class="field-section">
-            <div class="field-section__header">
-              <span>Volumes</span>
-              <button class="btn btn--ghost btn--xs" id="edit-vol-add-row" aria-label="Add volume mount">+ Add</button>
+            <!-- Row 2: Ports + Open URL -->
+            <div class="edit-fields-grid">
+              <label>Ports <input id="edit-ports" type="text" placeholder="8080:80" /></label>
+              <label>Open URL <input id="edit-url" type="text" placeholder="http://localhost:8080" /></label>
             </div>
-            <div id="edit-vol-table" class="vol-table"></div>
+
+            <!-- Row 3: Group + Tags -->
+            <div class="edit-fields-grid">
+              <label>Group <input id="edit-group" type="text" placeholder="databases" /></label>
+              <label>Tags <input id="edit-tags" type="text" placeholder="db, local, backend" /></label>
+            </div>
+
+            <!-- Row 4: Restart + Healthcheck -->
+            <div class="edit-fields-grid">
+              <label>Restart Policy
+                <select id="edit-restart">
+                  <option value="no">No</option>
+                  <option value="on-failure">On failure</option>
+                  <option value="unless-stopped">Unless stopped</option>
+                </select>
+              </label>
+              <label>Healthcheck Command <input id="edit-health-cmd" type="text" placeholder="curl -f http://localhost || exit 1" /></label>
+            </div>
+
+            <!-- Row 5: Healthcheck timing (3-col) -->
+            <div class="split3">
+              <label>Interval (s) <input id="edit-health-interval" type="number" min="1" /></label>
+              <label>Timeout (s) <input id="edit-health-timeout" type="number" min="1" /></label>
+              <label>Retries <input id="edit-health-retries" type="number" min="1" /></label>
+            </div>
+
+            <!-- Row: Network + Local Domain -->
+            <div class="edit-fields-grid">
+              <label>Docker Network
+                <div class="network-row">
+                  <select id="edit-network"><option value="">Default</option></select>
+                  <button type="button" class="btn btn--ghost btn--xs" id="edit-network-create" title="Create new network">+ New</button>
+                </div>
+              </label>
+              <label>Local Domain <small class="label-hint">.localhost:17300</small>
+                <input id="edit-local-domain" type="text" placeholder="myapp" />
+              </label>
+            </div>
+
+            <!-- Env vars + Volumes side-by-side -->
+            <div class="edit-fields-grid">
+              <div class="field-section">
+                <div class="field-section__header">
+                  <span>Environment Variables</span>
+                  <button class="btn btn--ghost btn--xs" id="edit-env-add-row" aria-label="Add environment variable">+ Add</button>
+                </div>
+                <div id="edit-env-table" class="kv-table"></div>
+              </div>
+              <div class="field-section">
+                <div class="field-section__header">
+                  <span>Volumes</span>
+                  <button class="btn btn--ghost btn--xs" id="edit-vol-add-row" aria-label="Add volume mount">+ Add</button>
+                </div>
+                <div id="edit-vol-table" class="vol-table"></div>
+              </div>
+            </div>
           </div>
 
-          <div class="modal-actions">
-            <button id="btn-edit-delete" class="btn btn--danger" aria-label="Delete this app">Delete</button>
+          <div class="modal-actions edit-modal__actions">
+            <div class="edit-delete-group">
+              <button id="btn-edit-delete" class="btn btn--danger" aria-label="Delete this app">Delete</button>
+              <label class="cleanup-opt" title="Also delete Docker volumes when removing"><input type="checkbox" id="edit-clean-volumes" /> Volumes</label>
+              <label class="cleanup-opt" title="Also remove the Docker image when removing"><input type="checkbox" id="edit-clean-image" /> Image</label>
+            </div>
+            <button id="btn-edit-stop" class="btn btn--stop hidden" aria-label="Stop this app">Stop</button>
+            <div class="edit-modal__actions-spacer"></div>
+            <button id="btn-edit-duplicate" class="btn btn--ghost" aria-label="Duplicate this app">Duplicate</button>
             <button id="btn-edit-cancel" class="btn btn--ghost" aria-label="Cancel editing app">Cancel</button>
             <button id="btn-edit-confirm" class="btn btn--primary" aria-label="Save app changes">Save</button>
           </div>
@@ -200,23 +335,123 @@
         </div>
       </div>
 
-      <footer class="settings-bar">
-        <label class="settings-bar__item" title="Launch The Loading Dock(r) automatically when you log in">
-          <input id="toggle-open-at-login" type="checkbox" />
-          Open at Login
-        </label>
-        <label class="settings-bar__item" title="Restart containers after repeated unhealthy health checks">
-          <input id="toggle-auto-restart" type="checkbox" checked />
-          Auto-restart on unhealthy
-        </label>
-<label class="settings-bar__item" title="Release channel for auto-updates">
-          Channel
-          <select id="release-channel" class="status-filter status-filter--inline">
-            <option value="stable">stable</option>
-            <option value="beta">beta</option>
-          </select>
-        </label>
-      </footer>
+      <!-- Settings modal -->
+      <div id="modal-settings" class="modal hidden">
+        <div class="modal-box modal-box--settings">
+
+          <div class="settings-header">
+            <svg class="settings-header__icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            <h2 class="settings-header__title">Settings</h2>
+          </div>
+
+          <div class="settings-modal__body">
+
+            <div class="settings-col">
+              <section class="settings-section">
+                <div class="settings-section__header">
+                  <span class="settings-section__icon">⚡</span>
+                  <h3 class="settings-section__title">Startup</h3>
+                </div>
+                <div class="settings-group">
+                  <label class="settings-row">
+                    <div class="settings-row__text">
+                      <span class="settings-row__label">Open at Login</span>
+                      <span class="settings-row__desc">Launch automatically when you log in</span>
+                    </div>
+                    <input type="checkbox" id="toggle-open-at-login" class="settings-toggle" />
+                  </label>
+                  <label class="settings-row">
+                    <div class="settings-row__text">
+                      <span class="settings-row__label">Show welcome guide</span>
+                      <span class="settings-row__desc">Display the onboarding guide on startup</span>
+                    </div>
+                    <input type="checkbox" id="toggle-show-onboarding" class="settings-toggle" />
+                  </label>
+                </div>
+              </section>
+
+              <section class="settings-section">
+                <div class="settings-section__header">
+                  <span class="settings-section__icon">🐳</span>
+                  <h3 class="settings-section__title">Containers</h3>
+                </div>
+                <div class="settings-group">
+                  <label class="settings-row">
+                    <div class="settings-row__text">
+                      <span class="settings-row__label">Auto-restart unhealthy</span>
+                      <span class="settings-row__desc">Restart after repeated failed health checks</span>
+                    </div>
+                    <input type="checkbox" id="toggle-auto-restart" class="settings-toggle" />
+                  </label>
+                </div>
+              </section>
+            </div>
+
+            <div class="settings-col">
+              <section class="settings-section">
+                <div class="settings-section__header">
+                  <span class="settings-section__icon">🔄</span>
+                  <h3 class="settings-section__title">Updates</h3>
+                </div>
+                <div class="settings-group">
+                  <label class="settings-row">
+                    <div class="settings-row__text">
+                      <span class="settings-row__label">Check automatically</span>
+                      <span class="settings-row__desc">Check for updates on launch</span>
+                    </div>
+                    <input type="checkbox" id="toggle-auto-check-updates" class="settings-toggle" />
+                  </label>
+                  <div class="settings-row">
+                    <div class="settings-row__text">
+                      <span class="settings-row__label">Release channel</span>
+                      <span class="settings-row__desc">Stable or early beta builds</span>
+                    </div>
+                    <select id="release-channel" class="settings-select">
+                      <option value="stable">Stable</option>
+                      <option value="beta">Beta</option>
+                    </select>
+                  </div>
+                </div>
+              </section>
+
+              <section class="settings-section">
+                <div class="settings-section__header">
+                  <span class="settings-section__icon">🔒</span>
+                  <h3 class="settings-section__title">Privacy &amp; Security</h3>
+                </div>
+                <div class="settings-group">
+                  <label class="settings-row">
+                    <div class="settings-row__text">
+                      <span class="settings-row__label">Mask secrets in logs</span>
+                      <span class="settings-row__desc">Redact sensitive env var values</span>
+                    </div>
+                    <input type="checkbox" id="toggle-mask-secrets" class="settings-toggle" />
+                  </label>
+                  <label class="settings-row">
+                    <div class="settings-row__text">
+                      <span class="settings-row__label">macOS Keychain</span>
+                      <span class="settings-row__desc">Store secrets in system Keychain</span>
+                    </div>
+                    <input type="checkbox" id="toggle-keychain-secrets" class="settings-toggle" />
+                  </label>
+                  <label class="settings-row">
+                    <div class="settings-row__text">
+                      <span class="settings-row__label">Error logging</span>
+                      <span class="settings-row__desc">Record errors to a local log file</span>
+                    </div>
+                    <input type="checkbox" id="toggle-error-logging" class="settings-toggle" />
+                  </label>
+                </div>
+              </section>
+            </div>
+
+          </div>
+
+          <div class="settings-footer">
+            <button id="btn-settings-close" class="btn btn--primary btn--sm">Done</button>
+          </div>
+        </div>
+      </div>
 
       <input id="registry-import-file" type="file" accept="application/json" class="hidden" />
     </div>
