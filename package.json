@@ -15,7 +15,7 @@
     "typecheck": "bunx tsc -p tsconfig.check.json --noEmit"
   },
   "dependencies": {
-    "electrobun": "latest",
+    "electrobun": "1.18.1",
     "js-yaml": "^4.1.1"
   },
   "devDependencies": {

@@ -1,12 +1,16 @@
-# ElectroDocker
+# The Loading Dock(r)
 
-Docker containers as desktop app icons, built with [Electrobun](https://electrobun.dev).
+Run Docker containers as desktop apps — no terminal needed. Built with [Electrobun](https://electrobun.dev).
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+---
 
 ## Prerequisites
 
 - [Bun](https://bun.sh) >= 1.0
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) (or Docker Engine on Linux)
-- macOS, Windows, or Linux
+- macOS (primary), Windows, or Linux
 
 ## Quick Start
 
@@ -27,66 +31,96 @@ bun run test
 ## Build
 
 ```bash
-bun run build
-bun run build:mac
-bun run build:win
-bun run build:linux
+bun run build:mac      # macOS .app
+bun run build:win      # Windows
+bun run build:linux    # Linux
 ```
+
+---
 
 ## Features
 
-- **Launcher** — grid of apps with search, status/group filters, drag-and-drop reorder, recommended catalog
-- **Docker lifecycle** — launch, stop, logs, health badges, CPU/memory metrics
-- **Compose import** — YAML → one app per service
-- **Embedded Web UI** — sandboxed in-app window for `openUrl` (or open in system browser)
-- **Secrets** — optional OS keychain for env vars; masking in the detail view
-- **Updates** — GitHub Releases with stable/beta channels (↻ in toolbar)
-- **Settings** — auto-restart on unhealthy, local error log export
+| Feature | Details |
+|---------|---------|
+| **App launcher grid** | Search, drag-and-drop reorder, 72 px icon tiles with CDN images |
+| **Recommended catalog** | 26+ curated self-hosted apps; one-click GET install with pre-filled env vars and volumes |
+| **Docker lifecycle** | Launch / stop / restart containers; live log streaming; health badges; CPU/MEM metrics |
+| **Compose import** | YAML → one app per service |
+| **Embedded Web UI** | In-app iframe that auto-loads `openUrl` when container starts; or open in system browser |
+| **Desktop shortcuts** | `.app` bundle created on `~/Desktop` on install; icon fetched from Dashboard Icons CDN |
+| **System tray** | Per-app live status dots, click-to-launch, Stop All / Restart All |
+| **Secrets** | OS keychain for sensitive env vars; masking in the detail view |
+| **Dark / Light theme** | One-click sun/moon toggle; preference saved to `settings.json` |
+| **Auto-updates** | One-click topbar chip; GitHub Releases stable/beta channels |
+| **Open at Login** | macOS login item toggle in the settings footer |
 
-## Registry & settings
+---
 
-App definitions: `apps.json` in OS-native config directories:
+## Registry & Settings
 
-- macOS: `~/Library/Application Support/electrodocker/apps.json`
-- Linux: `${XDG_CONFIG_HOME:-~/.config}/electrodocker/apps.json`
-- Windows: `%APPDATA%/electrodocker/apps.json`
+App definitions are stored in `apps.json` in the OS-native config directory:
 
-Also in that folder: `settings.json`, `metrics.json`, `errors.jsonl`.
+| Platform | Path |
+|----------|------|
+| macOS | `~/Library/Application Support/loading-dock/apps.json` |
+| Linux | `${XDG_CONFIG_HOME:-~/.config}/loading-dock/apps.json` |
+| Windows | `%APPDATA%/loading-dock/apps.json` |
 
-## Release channels
+Same folder also contains: `settings.json`, `metrics.json`, `errors.jsonl`.
+
+App data volumes are stored under `~/.loading-dock/<app-name>/`.
+
+---
+
+## Release Channels
 
 Use the **Channel** dropdown in the launcher footer (`stable` default, `beta` opt-in).
 
+---
+
 ## Troubleshooting
 
-- Docker warning banner: start Docker Desktop and reopen ElectroDocker.
-- Launch fails: check image name and host port conflicts (`host:container`, e.g. `8080:80`).
-- Web UI won’t load: ensure the container is **running** and `openUrl` matches your mapped port.
-- No health/metrics: container must be running; Docker CLI must be reachable.
-- Reset apps: delete `apps.json` from the paths above and relaunch.
+- **Docker warning banner** — start Docker Desktop and reopen The Loading Dock(r).
+- **Launch fails** — check the image name and host port conflicts (`host:container`, e.g. `8080:80`).
+- **Web UI won't load** — ensure the container is **running** and `openUrl` matches your mapped port.
+- **No health/metrics** — container must be running; Docker CLI must be reachable from Bun.
+- **Reset apps** — delete `apps.json` from the path above and relaunch.
+- **Desktop icon doesn't launch** — ensure The Loading Dock(r) is running; the shortcut connects via `localhost:42424`.
+
+---
 
 ## Docs
 
 | Doc | Purpose |
 |-----|---------|
+| [docs/MVP_SCOPE.md](docs/MVP_SCOPE.md) | Versioned feature history |
 | [docs/PROJECT_BOARD.md](docs/PROJECT_BOARD.md) | Milestones |
-| [docs/MVP_SCOPE.md](docs/MVP_SCOPE.md) | Scope |
-| [docs/QA_MATRIX.md](docs/QA_MATRIX.md) | QA scenarios |
 | [docs/QA_SIGNOFF.md](docs/QA_SIGNOFF.md) | Release sign-off checklist |
 | [docs/RELEASE_OPERATIONS.md](docs/RELEASE_OPERATIONS.md) | Release process |
-| [docs/CI.md](docs/CI.md) | CI & Windows E2E skip |
-| [docs/PERFORMANCE.md](docs/PERFORMANCE.md) | Performance notes |
+| [docs/CI.md](docs/CI.md) | CI & Windows E2E notes |
+| [docs/PERFORMANCE.md](docs/PERFORMANCE.md) | Performance targets |
 
-## Structure
+---
+
+## Project Structure
 
 ```
-ElectroDocker/
+LoadingDock_R/
+├── LICENSE
 ├── electrobun.config.ts
+├── package.json
 ├── src/
-│   ├── main/           Main process: windows, IPC, Docker, updater
+│   ├── main/           Main process: windows, IPC, Docker, updater, tray
 │   ├── renderer/
-│   │   ├── launcher/   App grid + recommended catalog
-│   │   └── app-window/ Per-app logs, metrics, Web UI controls
-│   └── shared/         Types + validation
-└── assets/icons/
+│   │   ├── launcher/   App grid, recommended catalog, settings footer
+│   │   └── app-window/ Per-app Web UI iframe, logs, metrics, health
+│   └── shared/         Types, validation
+├── assets/icons/
+└── docs/
 ```
+
+---
+
+## License
+
+MIT © 2026 Steven Azevedo — see [LICENSE](LICENSE).

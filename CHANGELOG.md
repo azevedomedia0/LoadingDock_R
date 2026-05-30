@@ -1,149 +1,141 @@
-# Changelog
+# Changelog — The Loading Dock(r)
 
-All notable changes to ElectroDocker are documented here.
-Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+All notable changes are documented here.  
+Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).  
 Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+> The project was originally named **ElectroDocker**; renamed to **The Loading Dock(r)** in v1.1.0.
 
 ---
 
 ## [Unreleased]
 
-### Added (v1.0)
-- **Embedded Web UI** — sandboxed `BrowserWindow` for `openUrl`; **Open embedded** / **System browser** in app detail; **Web UI** on launcher cards when running.
-- **Launcher filters** — search (debounced), status, and group dropdowns for installed apps.
-- **Release channel UI** — stable/beta dropdown in settings footer (persisted).
+---
 
-### Added (beta)
-- **Auto-restart on unhealthy** — after 3 consecutive unhealthy health-check polls (~15s), running apps with a healthcheck and restart policy restart automatically (toggle in launcher footer).
-- **Log level filter** — app detail window filters logs by error / warn / info / system; download exports the filtered view.
-- **Local error reporting** — errors append to `errors.jsonl` in the config directory; export via **Export errors** (opt-out toggle; no remote telemetry).
-- **Beta settings bar** — launcher footer toggles for auto-restart and error logging.
+## [1.2.0] — 2026-05-30
 
-### Tests
-- `health-recovery.test.ts`, `error-report.test.ts`, `ipc-integration.test.ts`, and log-level coverage in `metrics.test.ts`.
+### Added
+- **Dark / Light theme toggle** — sun/moon button in topbar; `theme` persisted in `settings.json`; `[data-theme="light"]` CSS overrides all design tokens.
+- **One-click topbar update chip** — replaces the update banner; states: idle → checking → available (click to download) → downloading (inline progress bar + %) → ready (green "✓ Restart to apply").
+- **Desktop shortcut icons** — `.app` bundle created on `~/Desktop` on app install; icon fetched from Dashboard Icons CDN and converted to ICNS via `sips`; removed on app delete.
+- **Tray menu overhaul** — per-app colored dots (🟢/🟡/🔴), click-to-launch/open-window, Stop All, Restart All, Settings, Open Dashboard, Quit.
+- **Default env vars and volumes** for all 26 recommended apps — data stored under `~/.loading-dock/<app>`; media libraries map `~/Movies`, `~/Music`, `~/TV`, `~/Downloads`, `~/Pictures`.
+- **Open at Login** toggle — macOS login item via `osascript`; persisted in `settings.json`.
+- **New recommended apps** — Navidrome, Homebridge, Puter, Guacamole; all images pinned to `:latest`; Tailscale moved to Self-hosted Essentials.
+- **`app:restart` IPC message** — stop + re-launch in a single action; used by Restart button and Restart All.
+- **Stop button** in installed-app status row (running apps); settings gear uses custom SVG icon.
+- **MIT License** — `LICENSE` file added (© 2026 Steven Azevedo).
+- **Accessibility** — `aria-label` on every interactive button in the launcher.
+
+### Changed
+- `loadRegistry` defaults `env: {}`, `volumes: []`, `ports: []`, `tags: []` before spread — older `apps.json` entries without these fields no longer crash `Object.entries` / `for...of`.
+- Update check button now shows "Checking…" chip state instead of a banner message.
+- `broadcastSettingsState` includes `theme` field.
+
+### Fixed
+- `refreshGroupFilterOptions` was calling `getElementById("group-filter")` after the dropdown was removed — caused a null-reference crash in the `apps:list` IPC handler, silently preventing newly installed apps from appearing in the grid.
+- Renderer → main IPC: switched from `webview.on("ipc-message", …)` (DOM event emitter, never fired for RPC messages) to `webview.rpc.addMessageListener("ipc-message", …)` (correct RPC dispatch path).
+
+---
+
+## [1.1.0] — 2026-05-25
+
+### Added
+- **App renamed** to **The Loading Dock(r)**; all internal identifiers updated to `loading-dock`.
+- **Custom app icon** (whale + house) in topbar; logo uses Cal Sans from Bunny Fonts.
+- **Iconoir solid icon buttons** in toolbar (check for updates, pull, push, add app) with custom SVGs.
+- **Docker Hub button** moved to toolbar with "Docker Hub" text label.
+- **Recommended apps** — 2-column grid; live GET → installing animation (spinner + progress label + "✓ Added"); already-installed apps show "✓ Added" on load.
+- **Direct GET install** — clicking GET on a recommended app fires `app:add` immediately without opening the Add modal.
+- **Installed apps icon grid** — vertical card layout with 72 px icons from Dashboard Icons CDN; clicking the icon launches/stops the container.
+- **Colored status indicators** — text label + dot for Running / Offline / Error / Starting / Stopping.
+- **Settings gear** per installed-app card (replaces Edit + Del); Delete moved into the edit modal.
+- **Restart button** in status row (running apps only).
+- **Section dropdowns** with animated chevron arrows (collapse / expand Installed and Recommended Apps).
+- **Transparent scrollbar** with semi-transparent thumb.
+- **Sticky footer** — always visible while sections scroll.
+- **`app:add` GET button** pre-fills env vars and volumes from the recommended-app definition.
+- **App window Web UI tab** — primary view is an `<iframe>` that auto-loads `openUrl` when the container starts; Logs tab preserves existing sidebar + log panel.
+- **GitHub repository** linked: https://github.com/azevedomedia0/LoadingDock_R
+
+### Changed
+- Background colour updated to `#669bbc`; surface to `#02395a`.
+- Status row settings button uses a custom orbital-ring SVG.
+- `buildCardHTML` derives icon CDN slug from the image name; shows white `#fff` background instead of gradient.
+- Recommended app cards are left-aligned with rounded hover animation.
+- `statusFilter` hardcoded to `"all"` (dropdown removed); group filter dropdown removed.
+
+### Fixed
+- Renderer ↔ main IPC polyfill updated for Electrobun ≥ 1.18.1 — `ev.send` now wraps messages in `{type:"message", id, payload}` RPC envelope; `ev.on` unwraps incoming envelopes before dispatching.
+
+---
+
+## [1.0.0] — 2026-05-21
+
+### Added
+- **Embedded Web UI** — `BrowserWindow` for `openUrl`; "Open embedded" / "System browser" in app detail; "Web UI" button on launcher cards.
+- **Launcher filters** — debounced search, status dropdown, group dropdown.
+- **Release channel UI** — stable/beta dropdown in settings footer (persisted to `settings.json`).
+- **Auto-restart on unhealthy** — after 3 consecutive unhealthy polls (~15 s), auto-restart (footer toggle).
+- **Log level filter** — error / warn / info / system; download exports filtered view.
+- **Local error reporting** — `errors.jsonl` in config directory; Export errors button; opt-out toggle.
+- **Platform keychain integration** — `security` (macOS), DPAPI/PowerShell (Windows), `secret-tool`/libsecret (Linux); secrets resolved at launch, never written to `apps.json`.
+- **Drag-and-drop reorder** — cards draggable; `app:reorder` persists `sortOrder`.
+- **Env-var and Volume editors** in Add / Edit modals — dynamic key/value tables with per-row keychain toggle.
+- **Update notification** — GitHub Releases check (24 h cooldown), progress bar, Install / Later buttons.
+- **Native OS notifications** — unexpected errors/stops via `osascript` / `notify-send` / PowerShell toast.
+- **Hub search cache** — in-memory `Map` deduplicates repeated queries.
+- CI workflows: `.github/workflows/ci.yml` (lint → test → build matrix) and `release.yml` (tag-triggered artifact upload).
+
+---
 
 ## [0.2.0] — 2026-05-21
 
 ### Added (since RC1)
-- **Platform keychain integration** (`src/main/keychain.ts`) — `keychainSet` /
-  `keychainGet` / `keychainDelete` backed by `security`(macOS), DPAPI/PowerShell
-  (Windows), and `secret-tool`/libsecret (Linux). Secrets are resolved at launch
-  time and never written to `apps.json`.
-- **`keychainEnvKeys`** field on `DockerApp` tracks which env keys are
-  keychain-backed; preserved through registry save/load cycle.
-- **`sortOrder`** field on `DockerApp` preserves drag-and-drop position.
-- **Drag-and-drop reorder** — installed-app cards are draggable; dropping
-  broadcasts `app:reorder` and persists new order via `sortOrder`.
-- **`app:reorder` IPC message** — main process sorts the apps array and saves registry.
-- **Env-var editor** in Add / Edit modals — dynamic key/value table with per-row
-  keychain toggle (🔑); serialises to `DockerApp.env` and `keychainEnvKeys`.
-- **Volume editor** in Add / Edit modals — dynamic host:container path table;
-  replaces the previous `[]` default.
-- **Update notification banner** — dedicated UI element with version title, release-
-  notes excerpt, animated progress bar, and Install / Later buttons.
-- **Auto-check on startup** — checks GitHub Releases once per 24 h (cooldown
-  stored in `settings.json` as `lastUpdateCheckAt`); small 3 s delay after
-  window opens so the launcher is ready to receive the message.
-- **Native OS notifications** — unexpected container errors/stops trigger
-  `osascript` (macOS), `notify-send` (Linux), or PowerShell toast (Windows).
-  User-initiated stops (status `"stopping"`) are excluded.
-- **Hub search cache** — `hubCache` Map deduplicated repeated queries in the
-  launcher; Popular / Search / hub modal all read from cache first.
-- **`src/renderer/app-window/renderer.ts`** — `statusBadgeSpec`, `buildEnvEntries`,
-  `buildPortsListItems`, `formatHealthLabel` extracted as pure functions.
-- **`src/renderer/app-window/renderer.test.ts`** — 30 tests covering badge spec,
-  env masking/locking, log buffering, metrics history, and IPC state transitions.
-- **`src/main/keychain.ts` tests** covered via settings + updater test suite.
-- **`.github/workflows/ci.yml`** — lint → unit (3 platforms) → E2E Linux/macOS →
-  Windows skip-verification → build (3 platforms) matrix.
-- **`.github/workflows/release.yml`** — tag-triggered build, checksum generation,
-  and GitHub Release artifact upload.
-- **`scripts/release.sh`** — local release helper: runs tests, checks version,
-  builds macOS, generates checksums, tags commit.
-- **`RELEASE_NOTES.md`** — human-readable notes used by the release workflow as
-  GitHub Release body.
-
-### Changed (since RC1)
-- `CURRENT_VERSION` in `index.ts` bumped to `0.2.0`.
-- `launchApp` signature accepts optional `resolvedEnv` map; when keychain mode is
-  enabled the main process resolves secrets before spawning the container.
-- `broadcast` now sends a real native notification on unexpected `error` / `stopped`
-  transitions instead of only broadcasting an in-app error banner.
-- `secrets:keychain` IPC handler now triggers actual `saveSettings` and removes the
-  "scaffold" marker from the error banner.
-- Launcher `renderHubResults` / `renderStoreTopImages` use safe DOM methods
-  (no `innerHTML` clearing).
-- Hub modal, Popular button, and Search button all hit the cache before sending IPC.
-
-## [0.2.0-rc.1] — 2026-05-21 — Release Candidate 1
-
-### Added
-- **Update channel persistence** — `releaseChannel`, `notificationsEnabled`,
-  `secretsMaskingEnabled`, and `keychainSecretsEnabled` are now saved to
-  `settings.json` alongside the app registry and survive restarts.
-- **Real updater integration** — `src/main/updater.ts` checks the GitHub
-  Releases API for the current channel, downloads the platform-specific
-  artifact with progress reporting, and applies the update by launching the
-  installer and exiting.
-- **Updater IPC messages** — `update:check`, `update:available`,
-  `update:not-available`, `update:download`, `update:download:progress`,
-  `update:download:done`, `update:apply`, and `update:state` added to the
-  shared IPC type union.
-- **"Check for updates" button** (↻) in the launcher toolbar wired to the
-  new `update:check` IPC message.
-- **Virtual scroll for large catalogs** — installed-app grid switches to an
-  IntersectionObserver-based batch renderer when more than 80 apps are
-  present, keeping first-paint fast regardless of catalog size.
-- **Hub search cache** — Docker Hub results are cached in-memory by query
-  string to avoid redundant network round-trips during a session.
-- **Extracted pure-logic modules** — `src/renderer/launcher/filter.ts` and
-  `src/renderer/app-window/metrics.ts` centralise all renderer logic that
-  can be unit tested without a browser runtime.
-- **Automated tests** — 85 passing tests across 9 files:
-  - `src/main/settings.test.ts` — path derivation, save/load, corrupt-file fallback
-  - `src/main/updater.test.ts` — semantic-version comparison
-  - `src/renderer/launcher/filter.test.ts` — filterApps (search, status,
-    group, tags, combos, 2000-app perf), collectGroups, buildCardHTML,
-    buildHubCardHTML
-  - `src/renderer/app-window/metrics.test.ts` — maskValue, filterLogLines,
-    rangeMs, scopeMetrics, buildSparkline, latestMetricsLabel
-  - `src/e2e/smoke.test.ts` — launch/stop/log/health/metrics against the
-    real Docker CLI; skips automatically when Docker is unavailable
-- **`virtual-sentinel` CSS** added to the launcher stylesheet for the
-  IntersectionObserver anchor element.
+- Keychain integration, `sortOrder` field, drag-and-drop reorder.
+- Env-var and Volume editors in Add/Edit modals.
+- Update notification banner with progress and Install/Later buttons.
+- Auto-check on startup (24 h cooldown via `lastUpdateCheckAt`).
+- Native OS notifications for unexpected container state changes.
+- Hub search cache (`hubCache` Map).
+- `renderer.ts` / `renderer.test.ts` for app-window pure logic (30 tests).
+- CI and release workflow YAML.
+- `scripts/release.sh` local helper; `RELEASE_NOTES.md`.
 
 ### Changed
-- `src/renderer/launcher/script.ts` now delegates filtering, card HTML
-  generation, and hub card HTML generation to `filter.ts`.
-- `src/renderer/app-window/script.ts` now delegates log filtering, metrics
-  scoping, sparkline generation, and value masking to `metrics.ts`.
-- `refreshGroupFilterOptions` refactored to use safe DOM methods (no more
-  `innerHTML`).
-- `update:channel:set` handler now persists the change to `settings.json`.
-- `secrets:mask`, `secrets:keychain`, and `notifications:enabled` handlers
-  now persist their changes to `settings.json`.
-- `openLauncher` now sends `update:state` on DOM-ready so the channel
-  dropdown reflects the persisted value.
+- `CURRENT_VERSION` bumped to `0.2.0`.
+- `launchApp` accepts optional `resolvedEnv` for keychain secrets.
+- `broadcast` triggers real native notifications on error/stopped transitions.
+
+---
+
+## [0.2.0-rc.1] — 2026-05-21
+
+### Added
+- Update channel persistence (`releaseChannel`, `notificationsEnabled`, `secretsMaskingEnabled`, `keychainSecretsEnabled` in `settings.json`).
+- Real updater: GitHub Releases API → download with progress → apply.
+- Updater IPC messages (`update:check`, `update:available`, `update:not-available`, `update:download`, `update:download:progress`, `update:download:done`, `update:apply`, `update:state`).
+- Virtual scroll for installed-app grid (> 80 apps → IntersectionObserver batch renderer).
+- Extracted `filter.ts` and `metrics.ts` pure modules; 85 tests across 9 files.
 
 ### Fixed
-- Group filter dropdown retained stale option list when all apps in a group
-  were removed.
+- Group filter dropdown retained stale option list after all apps in a group were removed.
 
 ---
 
 ## [0.1.0] — 2026-05-01 — Initial Release
 
 ### Added
-- Launcher window with app grid, search, status filter, and group filter.
-- App detail window with live logs, pull progress, health badge, and metrics sparkline.
+- Launcher window: app grid, search, status/group filters.
+- App detail window: live logs, pull progress, health badge, metrics sparkline.
 - Docker CLI integration: launch, stop, pull, health inspect, stats.
 - App registry persisted to platform-appropriate config directory.
-- Metrics history persisted across restarts (7-day window, 5 000-point cap per app).
-- Docker Compose import (docker-compose.yml → multiple apps).
-- Docker Hub browse and search with one-click install flow.
-- Preset configurations for postgres, redis, and minio.
+- Metrics history (7-day window, 5 000-point cap per app).
+- Docker Compose import.
+- Docker Hub browse and search with one-click install.
+- Preset configurations for postgres, redis, minio.
 - Secrets masking in the environment-variable list.
 - Registry JSON export and import.
 - System tray icon with Open/Quit menu.
 - macOS Application menu.
-- Release channel selector (stable / beta) in the toolbar.
+- Release channel selector (stable / beta).
