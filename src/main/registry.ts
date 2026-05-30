@@ -39,10 +39,6 @@ async function ensureDir(registryDir = getRegistryDir()) {
   await Bun.write(join(registryDir, ".keep"), "");
 }
 
-function randomSecret(length = 24): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(length));
-  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
-}
 
 export async function loadRegistry(
   registryFile = getRegistryFile(),
@@ -52,6 +48,11 @@ export async function loadRegistry(
     const text = await file.text();
     const raw = JSON.parse(text) as Omit<DockerApp, "status">[];
     return raw.map((a) => ({
+      // Provide safe defaults for fields that may be absent in older registries
+      env: {},
+      volumes: [],
+      ports: [],
+      tags: [],
       ...a,
       status: "stopped",
       containerId: undefined,
@@ -79,49 +80,5 @@ export async function saveRegistry(
 }
 
 function getDefaultApps(): DockerApp[] {
-  const postgresPassword = randomSecret();
-  const minioPassword = randomSecret();
-  return [
-    {
-      id: "postgres-dev",
-      name: "Postgres",
-      icon: "postgres.png",
-      description: "PostgreSQL 15 development database",
-      image: "postgres:15",
-      ports: ["5432:5432"],
-      env: {
-        POSTGRES_PASSWORD: postgresPassword,
-        POSTGRES_USER: "dev",
-        POSTGRES_DB: "devdb",
-      },
-      volumes: ["~/.loading-dock/data/postgres:/var/lib/postgresql/data"],
-      status: "stopped",
-    },
-    {
-      id: "redis-dev",
-      name: "Redis",
-      icon: "redis.png",
-      description: "Redis 7 in-memory store",
-      image: "redis:7-alpine",
-      ports: ["6379:6379"],
-      env: {},
-      volumes: [],
-      status: "stopped",
-    },
-    {
-      id: "minio-dev",
-      name: "MinIO",
-      icon: "minio.png",
-      description: "S3-compatible object storage",
-      image: "minio/minio",
-      ports: ["9000:9000", "9001:9001"],
-      env: {
-        MINIO_ROOT_USER: "minioadmin",
-        MINIO_ROOT_PASSWORD: minioPassword,
-      },
-      volumes: ["~/.loading-dock/data/minio:/data"],
-      openUrl: "http://localhost:9001",
-      status: "stopped",
-    },
-  ];
+  return [];
 }
